@@ -1,23 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
-use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
+/**
+ * Seeder gốc chỉ khởi tạo dữ liệu danh mục hệ thống chuẩn (RBAC & Kho Trung tâm).
+ *
+ * Lưu ý bảo mật: Tuyệt đối KHÔNG tạo tài khoản người dùng mẫu hoặc cấp quyền Super Admin
+ * trong `DatabaseSeeder`; việc khởi tạo Super Admin đầu tiên chỉ thực hiện qua lệnh CLI an toàn.
+ */
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Seed the application's database.
+     * Khởi tạo dữ liệu nền tảng cho ứng dụng.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            RoleAndPermissionSeeder::class,
+            CentralWarehouseSeeder::class,
         ]);
     }
 }

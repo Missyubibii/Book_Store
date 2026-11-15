@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\User;
+
 return [
 
     /*
@@ -62,7 +64,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\User::class),
+            'model' => env('AUTH_MODEL', User::class),
         ],
 
         // 'users' => [
@@ -111,5 +113,17 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Staff Temporary Password TTL (Decision 2.5)
+    |--------------------------------------------------------------------------
+    |
+    | Default expiration window (in hours) for administrator-issued staff
+    | temporary passwords before onboarding forced-password-change expires.
+    |
+    */
+
+    'staff_temporary_password_ttl_hours' => env('STAFF_TEMP_PASSWORD_TTL_HOURS', 24),
 
 ];

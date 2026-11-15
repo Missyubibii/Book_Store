@@ -1,0 +1,20 @@
+{
+    "Unauthorized": "Chưa xác thực danh tính",
+    "Payment Required": "Yêu cầu thanh toán",
+    "Forbidden": "Truy cập bị từ chối",
+    "Not Found": "Không tìm thấy trang",
+    "Page Expired": "Phiên làm việc đã hết hạn",
+    "Too Many Requests": "Quá nhiều yêu cầu",
+    "Server Error": "Lỗi hệ thống",
+    "Service Unavailable": "Dịch vụ tạm thời gián đoạn",
+    "Invalid signature.": "Liên kết xác thực không hợp lệ hoặc đã hết hạn.",
+    "This action is unauthorized.": "Bạn không có quyền thực hiện thao tác này hoặc liên kết xác thực không hợp lệ.",
+    "Too Many Attempts.": "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau ít phút.",
+    "CSRF token mismatch.": "Phiên bảo mật đã hết hạn. Vui lòng tải lại trang và thử lại.",
+    "Unauthenticated.": "Vui lòng đăng nhập để tiếp tục.",
+    "Hello!": "Xin chào!",
+    "Whoops!": "Rất tiếc!",
+    "Regards,": "Trân trọng,",
+    "All rights reserved.": "Bảo lưu mọi quyền.",
+    "If you're having trouble clicking the \":actionText\" button, copy and paste the URL below\ninto your web browser:": "Nếu bạn gặp sự cố khi nhấn nút \":actionText\", vui lòng sao chép và dán đường dẫn bên dưới vào trình duyệt web của bạn:"
+}

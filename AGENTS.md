@@ -281,3 +281,62 @@ not an assumed or planned execution path.
 
 Keep changes reviewable and reversible wherever practical.
 
+## 11. Frontend Architecture and Fluid Responsiveness Standards
+
+All Book_Store user interfaces MUST adhere to strict separation of concerns and continuous fluid responsiveness across every module:
+
+### Asset Separation
+- **Blade Templates (`resources/views/`)**: Own semantic HTML structure, Laravel directives, data rendering, and accessible ARIA markup. Avoid large inline `<style>` or `<script>` blocks.
+- **Stylesheets (`resources/css/`)**: Global design tokens and Tailwind CSS v4 configuration belong in `resources/css/app.css`; module-specific styles belong in dedicated CSS files under `resources/css/`.
+- **Scripts (`resources/js/`)**: Shared initialization belongs in `resources/js/app.js`; module-specific interactions and Alpine.js data components belong in dedicated JS files under `resources/js/` and MUST be registered before Alpine initialization without creating duplicate Alpine instances.
+
+### Mandatory Fluid Responsiveness ("Book_Store — Liquid White")
+- Every screen MUST support **continuous browser resizing** from `320px` up to `1920px+` (including all intermediate widths: `320px`, `360px`, `390px`, `430px`, `480px`, `600px`, `768px`, `900px`, `1024px`, `1280px`, `1440px`, `1920px`) and **200% browser zoom** without horizontal overflow, overlapping elements, clipped controls, or abrupt breakpoint jumps.
+- Use mobile-first CSS with fluid sizing (`clamp()`, `min()`, `max()`, `minmax()`, Flexbox, CSS Grid, and `min-width: 0` on flex/grid children).
+- Ensure all interactive touch targets meet a minimum `44×44px` hit area, inputs use at least `16px` (`1rem`) font size to prevent forced mobile browser zoom, and long Vietnamese labels or validation messages wrap cleanly (`overflow-wrap: break-word`).
+
+## 12. Centralized Business Values & Canonical Enums
+
+Follow the permanent architectural principle: **ONE BUSINESS CONCEPT = ONE CANONICAL DEFINITION.**
+
+- Fixed-value business concepts MUST live in PHP 8.3 string-backed Enums under `app/Enums/` with lowercase `snake_case` database values, `PascalCase` case names, explicit Vietnamese labels via `label(): string` backed by `lang/vi/enums.php`, and valid transition helpers where applicable.
+- Do not duplicate raw business status strings across models, actions, middleware, factories, or views. Do not introduce Enums for unimplemented modules.
+- **Canonical Authentication & Access Enums**:
+  - `App\Enums\AccountStatus` (`users.account_status`, default `active`): `active`, `suspended`.
+  - `App\Enums\StaffAccessStatus` (`users.staff_access_status`, default `not_applicable`):
+    - `not_applicable`: Customer account with no staff relationship (mandatory default for registration, factories, and database schema).
+    - `pending`: Staff account awaiting activation.
+    - `active`: Activated staff account (prerequisite status only; NEVER independently grants administrative or branch permissions without explicit RBAC & branch-scope checks).
+    - `inactive`: Staff account whose staff access has been disabled (never substitute `inactive` for `not_applicable`).
+  - `App\Enums\LoginEventType` (`login_events.event_type`): `register_success`, `login_success`, `login_failed`, `account_locked`, `logout`, `session_revoked`.
+- **Canonical RBAC, Branch & Audit Enums (Stage 01B.2)**:
+  - `App\Enums\BranchType` (`branches.type`): `central_warehouse`, `retail_branch` (at most one `central_warehouse`; never converted to `retail_branch`).
+  - `App\Enums\BranchStatus` (`branches.status`): `active`, `inactive` (`central_warehouse` must never transition to `inactive`).
+  - `App\Enums\RoleScope` (`roles.scope`, `permissions.scope`): `global`, `branch`.
+  - `App\Enums\BranchAssignmentStatus` (`branch_assignments.status`): `active`, `inactive`.
+  - `App\Enums\StaffApprovalStatus` (`staff_activation_proposals.status`): `pending`, `approved`, `rejected`, `cancelled` (`pending` transitions only to terminal states `approved`, `rejected`, `cancelled`).
+  - `App\Enums\AuditAction` (`audit_logs.action`): `staff_created`, `staff_linked`, `temp_password_issued`, `forced_password_changed`, `staff_activation_proposed`, `staff_activation_approved`, `staff_activation_rejected`, `staff_suspended`, `staff_reactivated`, `role_assigned`, `role_revoked`, `branch_assigned`, `branch_removed`, `account_suspended`, `account_reactivated`, `super_admin_bootstrapped`, `branch_created`, `branch_updated`.
+
+## 13. Stage 01B.2 → Stage 01B.3 Architecture & Invariant Notes
+
+All Stage 01B.3+ services, middleware, policies, commands, and UI workflows MUST enforce these invariants:
+
+### Four Mandatory Corrections
+- **Correction A — Domain Invariants Above `Gate::before`**: Even if Super Admin receives broad capability checks via `Gate::before` or authorization resolvers, Super Admin MUST NOT bypass domain invariants (self-action prohibition, Last Effective Super Admin protection, `central_warehouse` immutability/active guarantee, or approval segregation).
+- **Correction B — Independent Onboarding Route Group**: The forced temporary-password change onboarding route group MUST remain independent of `staff.active` middleware so both `pending` and `active` staff holding a temporary password can complete their mandatory password change first; afterward, `pending` staff MUST stay blocked from operational staff routes until their activation proposal is approved.
+- **Correction C — SQLite-Compatible Concurrency for Last Effective Super Admin**: Do not rely on `lockForUpdate()` row locks (no-op in SQLite) or assume PHP 8.3 `BEGIN IMMEDIATE` works uniformly without explicit handling. Wrap Super Admin revocation, deactivation, or suspension checks inside an atomic transaction with driver-aware serialization and post-check re-verification before commit so at least one effective Super Admin (`account_status = active`, `staff_access_status = active`, and holding an active Super Admin global role) always remains.
+- **Correction D — Deferred Bootstrap CLI**: `bookstore:bootstrap-super-admin` is intentionally deferred to Stage 01B.3+ because it depends on credential issuance, RBAC assignment, and audit-logging services implemented in later stages.
+
+### Staff Governance & Audit Contracts
+- **Strict Self-Action Guard (Decision 2.6)**: An actor MUST NOT approve/reject their own `staff_activation_proposals`, suspend/reactivate/deactivate their own staff access or account, or revoke their own Super Admin / administrative roles.
+- **Last Branch Removal Contract (Decision 2.7)**: Removing or deactivating a staff member's last `active` branch assignment MUST atomically transition `users.staff_access_status` to `inactive` within the same transaction — sparing users who hold an active global `SuperAdmin` role (`role_scope = global`).
+- **AuditLog Append-Only & Zero-Secret Rule**: `audit_logs` records are strictly append-only (never updated or deleted in normal application flows) and MUST NEVER contain plaintext passwords, temporary passwords, password hashes, session IDs, tokens, or secrets in `old_values`, `new_values`, or `reason`.
+- **Composite `(user_id, branch_id)` Query Rule (Stage 01B.2.1)**: `BranchAssignment` MUST NOT expose a single-key `HasMany` Eloquent relation for `branch_role_assignments` (to prevent cross-user leakage during eager loading, `whereHas()`, or `withCount()`). Use `BranchAssignment::matchingRoleAssignments()` for single-assignment lookups (returns empty query if either key is null) or `User::branchRoleAssignments()` / direct `(user_id, branch_id)` queries.
+- **Approved Stage 01B.3 Permission Additions (Pending Catalog Reconciliation)**:
+  - `staff.reset_temp_password` (`global`, Super Admin)
+  - `staff.suspend` (`global`, Super Admin)
+  - `roles.view` (`branch`, Branch Admin, restricted to authorized branch-role visibility)
+  - These three permissions are approved for Stage 01B.3 catalog reconciliation in `RoleAndPermissionSeeder` BEFORE implementing `AuthorizationService`; they are NOT yet seeded or implicitly granted in Stage 01B.2.
+
+
+

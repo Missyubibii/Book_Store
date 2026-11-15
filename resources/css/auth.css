@@ -1,0 +1,592 @@
+/*
+|--------------------------------------------------------------------------
+| Book_Store Authentication Styles — "Liquid White" Fluid Responsive (Stage 01A.3.4)
+|--------------------------------------------------------------------------
+| Thiết kế tối giản, mượt mà lấy cảm hứng từ iOS hiện đại, hỗ trợ co giãn
+| liên tục (continuous fluid resizing) từ 320px đến 1920px+ và phóng đại 200%:
+| - Nền trắng tinh khiết (#FFFFFF)
+| - Bề mặt nhóm mềm mại (#F5F5F7)
+| - Ô nhập liệu bo tròn thoải mái (min-height 48px, radius 12px)
+| - Vùng chạm chuẩn di động (>= 44x44px)
+| - Sử dụng clamp(), min(), max() thay vì bước nhảy breakpoint cứng
+*/
+
+.bs-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bs-bg);
+    color: var(--bs-text);
+}
+
+/* Thanh điều hướng tối giản phía trên — co giãn mượt bằng clamp() & safe-area */
+.bs-topbar {
+    width: 100%;
+    max-width: 60rem;
+    margin: 0 auto;
+    padding-top: max(clamp(0.75rem, 2vw, 1.5rem), env(safe-area-inset-top, 0.75rem));
+    padding-bottom: clamp(0.375rem, 1vw, 0.625rem);
+    padding-left: max(clamp(1rem, 4vw, 2rem), env(safe-area-inset-left, 1rem));
+    padding-right: max(clamp(1rem, 4vw, 2rem), env(safe-area-inset-right, 1rem));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.bs-return-link {
+    min-height: 2.75rem;
+    padding: 0.5rem 0.875rem;
+    margin-left: -0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--bs-text-secondary);
+    background-color: transparent;
+    border-radius: 9999px;
+    text-decoration: none;
+    transition: background-color 160ms ease, color 160ms ease, transform 120ms ease;
+}
+
+@media (hover: hover) {
+    .bs-return-link:hover {
+        background-color: var(--bs-surface);
+        color: var(--bs-text);
+    }
+}
+
+.bs-return-link:active {
+    transform: scale(0.98);
+}
+
+/* Không gian xác thực tập trung 1 cột cân đối, co giãn liên tục không bước nhảy */
+.bs-main {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding-top: clamp(0.75rem, 2.5vh, 2.25rem);
+    padding-bottom: clamp(1.75rem, 4.5vh, 3.5rem);
+    padding-left: max(clamp(1rem, 4vw, 2rem), env(safe-area-inset-left, 1rem));
+    padding-right: max(clamp(1rem, 4vw, 2rem), env(safe-area-inset-right, 1rem));
+}
+
+.bs-auth-container {
+    width: min(100%, 26rem);
+    min-width: 0;
+    margin: 0 auto;
+}
+
+/* Nhận diện thương hiệu Book_Store tinh gọn */
+.bs-auth-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6875rem;
+    min-height: 2.75rem;
+    margin-bottom: clamp(1.125rem, 2.5vw, 1.5rem);
+    text-decoration: none;
+    color: var(--bs-text);
+}
+
+.bs-brand-mark {
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bs-surface);
+    color: var(--bs-accent);
+    border-radius: 0.6875rem;
+    transition: background-color 160ms ease;
+}
+
+@media (hover: hover) {
+    .bs-auth-brand:hover .bs-brand-mark {
+        background-color: var(--bs-accent-tint);
+    }
+}
+
+.bs-brand-name {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: var(--bs-text);
+}
+
+/* Tiêu đề trang & Mô tả ngắn gọn */
+.bs-sheet-header {
+    margin-bottom: clamp(1.375rem, 3vw, 1.75rem);
+}
+
+.bs-sheet-title {
+    margin: 0 0 0.5rem 0;
+    font-family: var(--font-sans);
+    font-size: clamp(1.5rem, 1.25rem + 1.1vw, 1.875rem);
+    font-weight: 700;
+    line-height: 1.28;
+    letter-spacing: -0.022em;
+    color: var(--bs-text);
+    overflow-wrap: break-word;
+}
+
+.bs-sheet-subtitle {
+    margin: 0;
+    font-size: clamp(0.875rem, 0.84rem + 0.2vw, 0.9375rem);
+    line-height: 1.52;
+    color: var(--bs-text-secondary);
+    overflow-wrap: break-word;
+}
+
+.bs-sheet-subtitle strong {
+    color: var(--bs-text);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+/* Biểu mẫu & Trường nhập liệu mềm mại */
+.bs-form {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(1rem, 2vw, 1.1875rem);
+    width: 100%;
+    min-width: 0;
+}
+
+.bs-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4375rem;
+    min-width: 0;
+}
+
+.bs-label-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    column-gap: 0.5rem;
+    row-gap: 0.1875rem;
+    padding: 0 0.125rem;
+    min-width: 0;
+}
+
+.bs-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--bs-text);
+    line-height: 1.4;
+}
+
+.bs-label-hint {
+    font-size: 0.78125rem;
+    color: var(--bs-text-secondary);
+    line-height: 1.4;
+}
+
+.bs-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+.bs-input {
+    width: 100%;
+    min-width: 0;
+    min-height: 3rem;
+    padding: 0.75rem 0.9375rem;
+    background-color: var(--bs-surface);
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    color: var(--bs-text);
+    font-size: 1rem;
+    line-height: 1.4;
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.bs-input::placeholder {
+    color: #8E8E93;
+}
+
+@media (hover: hover) {
+    .bs-input:hover {
+        background-color: var(--bs-surface-hover);
+    }
+}
+
+.bs-input:focus,
+.bs-input:focus-visible {
+    outline: none;
+    background-color: var(--bs-bg);
+    border-color: var(--bs-accent);
+    box-shadow: 0 0 0 3.5px var(--bs-accent-ring);
+}
+
+.bs-input[aria-invalid="true"] {
+    background-color: var(--bs-danger-bg);
+    border-color: var(--bs-danger);
+}
+
+.bs-input[aria-invalid="true"]:focus,
+.bs-input[aria-invalid="true"]:focus-visible {
+    outline: none;
+    background-color: var(--bs-bg);
+    border-color: var(--bs-danger);
+    box-shadow: 0 0 0 3.5px rgba(217, 45, 32, 0.14);
+}
+
+.bs-input-has-toggle {
+    padding-right: 3.125rem;
+}
+
+/* Nút ẩn/hiện mật khẩu chuẩn vùng chạm 44x44px */
+.bs-pw-toggle {
+    position: absolute;
+    right: 0.1875rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 0.625rem;
+    color: var(--bs-text-secondary);
+    cursor: pointer;
+    transition: color 150ms ease, background-color 150ms ease;
+}
+
+@media (hover: hover) {
+    .bs-pw-toggle:hover {
+        color: var(--bs-text);
+        background-color: rgba(29, 29, 31, 0.05);
+    }
+}
+
+.bs-field-error {
+    margin: 0;
+    padding: 0 0.125rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--bs-danger);
+    line-height: 1.45;
+    overflow-wrap: break-word;
+}
+
+/* Bề mặt nhóm mềm mại (#F5F5F7) cho hướng dẫn mật khẩu & xác thực */
+.bs-policy-box {
+    margin-top: 0.25rem;
+    padding: 0.875rem 1rem;
+    background-color: var(--bs-surface);
+    border-radius: 0.75rem;
+    min-width: 0;
+}
+
+.bs-policy-title {
+    margin: 0 0 0.4375rem 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--bs-text);
+    overflow-wrap: break-word;
+}
+
+.bs-policy-list {
+    margin: 0;
+    padding-left: 1.125rem;
+    list-style-type: disc;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--bs-text-secondary);
+    line-height: 1.5;
+    overflow-wrap: break-word;
+}
+
+/* Tùy chọn Ghi nhớ đăng nhập */
+.bs-checkbox-row {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0.125rem 0;
+    min-width: 0;
+}
+
+.bs-checkbox-label {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--bs-text);
+    cursor: pointer;
+    user-select: none;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+.bs-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.1875rem;
+    height: 1.1875rem;
+    margin-top: 0.0625rem;
+    flex-shrink: 0;
+    background-color: var(--bs-surface);
+    border: 1.5px solid #C7C7CC;
+    border-radius: 0.375rem;
+    display: inline-grid;
+    place-content: center;
+    cursor: pointer;
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.bs-checkbox::before {
+    content: "";
+    width: 0.625rem;
+    height: 0.375rem;
+    border-left: 2px solid #FFFFFF;
+    border-bottom: 2px solid #FFFFFF;
+    transform: translateY(-1px) rotate(-45deg) scale(0);
+    transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) {
+    .bs-checkbox:hover {
+        border-color: #AEAEB2;
+    }
+}
+
+.bs-checkbox:checked {
+    background-color: var(--bs-accent);
+    border-color: var(--bs-accent);
+}
+
+.bs-checkbox:checked::before {
+    transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+
+.bs-checkbox:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--bs-accent-ring);
+}
+
+/* Nút hành động chính & phụ với phản hồi nhấn tinh tế, tự co giãn khi phóng to chữ 200% */
+.bs-btn-primary {
+    width: 100%;
+    min-width: 0;
+    min-height: 3rem;
+    padding: 0.75rem 1.125rem;
+    margin-top: 0.25rem;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background-color: var(--bs-accent);
+    color: #FFFFFF;
+    border: 0;
+    border-radius: 0.75rem;
+    font-size: 0.96875rem;
+    font-weight: 600;
+    line-height: 1.35;
+    text-align: center;
+    overflow-wrap: break-word;
+    cursor: pointer;
+    transition:
+        background-color 160ms ease,
+        transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 150ms ease;
+}
+
+@media (hover: hover) {
+    .bs-btn-primary:hover:not(:disabled) {
+        background-color: var(--bs-accent-hover);
+    }
+}
+
+.bs-btn-primary:active:not(:disabled) {
+    transform: scale(0.985);
+}
+
+.bs-btn-primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.bs-btn-secondary {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.875rem;
+    padding: 0.6875rem 1.125rem;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background-color: var(--bs-surface);
+    color: var(--bs-text);
+    border: 0;
+    border-radius: 0.75rem;
+    font-size: 0.90625rem;
+    font-weight: 500;
+    line-height: 1.35;
+    text-align: center;
+    overflow-wrap: break-word;
+    cursor: pointer;
+    transition:
+        background-color 160ms ease,
+        transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) {
+    .bs-btn-secondary:hover:not(:disabled) {
+        background-color: var(--bs-surface-hover);
+    }
+}
+
+.bs-btn-secondary:active:not(:disabled) {
+    transform: scale(0.985);
+}
+
+/* Chân biểu mẫu & Ghi chú hỗ trợ */
+.bs-sheet-footer {
+    margin-top: clamp(1.375rem, 3vw, 1.75rem);
+    padding-top: clamp(1.125rem, 2.5vw, 1.375rem);
+    border-top: 1px solid var(--bs-border);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.bs-switch-prompt {
+    margin: 0;
+    font-size: 0.90625rem;
+    line-height: 1.5;
+    color: var(--bs-text-secondary);
+    text-align: center;
+    overflow-wrap: break-word;
+}
+
+.bs-link {
+    color: var(--bs-accent);
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity 150ms ease;
+}
+
+@media (hover: hover) {
+    .bs-link:hover {
+        text-decoration: underline;
+        text-underline-offset: 0.2em;
+    }
+}
+
+.bs-security-note {
+    margin: 0;
+    padding: 0.8125rem 0.9375rem;
+    background-color: var(--bs-surface);
+    border-radius: 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--bs-text-secondary);
+    line-height: 1.5;
+    overflow-wrap: break-word;
+}
+
+/* Chân trang tối giản */
+.bs-footer {
+    width: 100%;
+    max-width: 60rem;
+    margin: 0 auto;
+    padding-top: 0.875rem;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
+    padding-left: max(clamp(1rem, 4vw, 2rem), env(safe-area-inset-left, 1rem));
+    padding-right: max(clamp(1rem, 4vw, 2rem), env(safe-area-inset-right, 1rem));
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem 1.25rem;
+    font-size: 0.78125rem;
+    color: var(--bs-text-secondary);
+    text-align: center;
+}
+
+/* ==========================================================================
+   Google OAuth 2.0 Integration (Stage 01B.5.8)
+   ========================================================================== */
+.bs-oauth-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.25rem 0 0.875rem 0;
+    width: 100%;
+}
+
+.bs-oauth-divider-line {
+    flex: 1;
+    height: 1px;
+    background-color: var(--bs-border, #e5e7eb);
+}
+
+.bs-oauth-divider-text {
+    font-size: 0.8125rem;
+    color: var(--bs-text-secondary, #6b7280);
+    text-transform: lowercase;
+    user-select: none;
+}
+
+.bs-oauth-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.bs-btn-oauth {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.625rem;
+    width: 100%;
+    min-height: 2.75rem; /* 44px hit area standard */
+    padding: 0.625rem 1.25rem;
+    background-color: #ffffff;
+    color: var(--bs-text, #1f2937);
+    border: 1px solid var(--bs-border, #d1d5db);
+    border-radius: 0.625rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    cursor: pointer;
+}
+
+.bs-btn-oauth:hover {
+    background-color: #f9fafb;
+    border-color: #9ca3af;
+    color: #111827;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
+}
+
+.bs-btn-oauth:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px var(--bs-primary, #0f766e);
+}
+
+.bs-oauth-icon {
+    flex-shrink: 0;
+}

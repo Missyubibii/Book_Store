@@ -1,0 +1,46 @@
+Dưới đây là cách chúng được xử lý trong bản nháp hiện tại và đề xuất tối ưu:
+- Vấn đề bạn nêu: AI không được tự ý bỏ qua Constitution khi có mâu thuẫn giữa yêu cầu mới và Hiến pháp. Khi có xung đột, AI phải báo lại.
+- Đánh giá bản nháp: Trong AGENTS.md, phần 2. Source of Truth hiện tại đang đặt "Explicit instructions from the current user" ở mức 1, cao hơn "The project constitution" ở mức 3. Mặc dù có câu "If instructions conflict, stop and explain the conflict", thứ tự ưu tiên hiện tại có thể khiến AI nghĩ rằng yêu cầu trực tiếp của user có thể ghi đè (override) Hiến pháp một cách ngầm định.
+- Đề xuất điều chỉnh trong AGENTS.md: Nên sửa lại thứ tự và làm rõ nguyên tắc "dừng và hỏi" khi có xung đột với Hiến pháp.
+- Vấn đề bạn nêu: Câu "obtain approval before making substantial changes" nên áp dụng ở cấp độ kế hoạch/module, không bắt AI hỏi trước từng file nhỏ.
+- Đánh giá bản nháp: Trong AGENTS.md, phần 3. Required Working Process có câu: "5. Present a bounded implementation plan. 6. Obtain approval before making substantial changes." Cách diễn đạt này có thể hơi mập mờ, khiến AI do dự khi tạo từng file migration hay controller.
+- Đề xuất điều chỉnh trong AGENTS.md: Làm rõ rằng "sự phê duyệt" áp dụng cho kế hoạch của module, và sau khi kế hoạch được duyệt, AI được phép thực thi chi tiết.
+- Vấn đề bạn nêu: Hệ thống demo phải phân biệt rõ giao dịch giả lập với giao dịch thật. Không được vô tình bật chức năng giả lập trên production.
+- Đánh giá bản nháp:
+  - Trong constitution.md (Article IV) có câu: "Mock payments must be clearly restricted to development, testing, or authorized demonstration environments."
+  - Trong AGENTS.md (Section 3) có câu: "Never replace real business workflows with permanent mock logic."
+- Đề xuất điều chỉnh: Các quy định hiện tại đã khá tốt. Tuy nhiên, để chặt chẽ hơn về việc không bao giờ bật trên production, chúng ta có thể làm rõ thêm trong Constitution.
+
+Khi Antigravity hoàn thành một chức năng, bạn có thể yêu cầu AI báo cáo theo mẫu:
+Luồng chức năng: Quản lý sách
+
+1. Người dùng truy cập /admin/books.
+2. Laravel Route chuyển đến BookController@index.
+3. Controller kiểm tra quyền và lấy danh sách sách.
+4. Controller render admin.books.index.
+5. Người dùng tương tác với bộ lọc hoặc các nút thao tác.
+Ví dụ minh họa, không phải luồng đã được kiểm chứng trong repository.
+
+Nhóm tài khoản	Phạm vi
+Super Admin				Quản trị hệ thống và cấu hình phân quyền toàn cục
+Admin					Quản lý nhân viên, chi nhánh và duyệt yêu cầu trong phạm vi được cấp
+Nhân viên				Thực hiện công việc theo vai trò tại từng chi nhánh
+Nhân viên kho trung tâm	Quản lý nghiệp vụ tại kho trung tâm theo quyền được cấp
+Nhà cung cấp				Truy cập cổng nhà cung cấp, chỉ xem và thao tác dữ liệu thuộc đơn vị mình
+Khách hàng				Mua sách, quản lý đơn hàng và thư viện eBook
+
+Module							Yêu cầu chính
+M01. Tài khoản và phân quyền		Đăng ký, đăng nhập, khách vãng lai mua sách in, RBAC, quyền theo cơ sở, tài khoản nhà cung cấp
+M02. Danh mục sách				Tác phẩm, phiên bản in/eBook, ISBN, thể loại nhiều-nhiều, tác giả, NXB, metadata, preview
+M03. Website bán hàng			Trang chủ, tìm kiếm nâng cao, lọc, chi tiết sách, yêu thích, giỏ hàng
+M04. Đơn hàng					Một đơn hỗn hợp, trạng thái từng loại hàng, xử lý hủy, hoàn và giao hàng
+M05. Thanh toán					COD, thanh toán giả lập, xác nhận thu tiền, lịch sử thanh toán
+M06. Nhà cung cấp				Danh mục cung ứng, báo giá, tồn khả dụng khai báo, xác nhận đơn nhập
+M07. Nhập hàng và FIFO			Đơn mua hàng, kiểm nhận, lô nhập, giá vốn, truy xuất nguồn cung
+M08. Kho và cơ sở	Tồn riêng từng cơ sở, giữ hàng, điều chuyển qua kho trung tâm, kiểm kê, phân bổ đơn
+M09. eBook và giấy phép			Cấp quyền, đọc PDF, tải có điều kiện, thời hạn, gia hạn, thư viện cá nhân
+M10. Kiểm soát quản trị			Phê duyệt, xác nhận thay đổi, audit, Undo và thao tác đảo nghiệp vụ
+M11. Báo cáo và marketing			Doanh thu, lợi nhuận, so sánh nguồn cung, mã giảm giá, bộ sưu tập, đánh giá
+M12. Gợi ý sách					Xu hướng, sách tương tự, lịch sử tương tác, hồ sơ sở thích
+
+lệnh tạo tk supper admin: "php artisan bookstore:bootstrap-super-admin"
