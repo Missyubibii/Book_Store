@@ -12,9 +12,11 @@ use App\Http\Requests\Admin\StoreBranchRequest;
 use App\Http\Requests\Admin\UpdateBranchRequest;
 use App\Http\Requests\Admin\UpdateBranchStatusRequest;
 use App\Models\Branch;
+use App\Models\BranchRoleAssignment;
 use App\Services\Audit\AuditLogQueryService;
 use App\Services\Authorization\AuthorizationService;
 use App\Services\Branches\BranchAdministrationService;
+use App\Services\Staff\StaffAdministrationService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -38,6 +40,7 @@ class BranchController extends Controller
         private readonly BranchAdministrationService $branchAdmin,
         private readonly AuditLogQueryService $auditQuery,
         private readonly AuthorizationService $authorization,
+        private readonly StaffAdministrationService $staffAdmin,
     ) {}
 
     public function index(ListBranchesRequest $request): View
@@ -112,10 +115,26 @@ class BranchController extends Controller
         $actor = $request->user();
         $auditPage = $this->auditQuery->cursorPaginateForBranch($branch, null, 10, $actor);
 
+        $branchAssignments = $branch->branchAssignments()
+            ->with(['user.staffProfile'])
+            ->orderByDesc('status')
+            ->orderByDesc('is_primary')
+            ->latest('assigned_at')
+            ->get();
+
+        $roleAssignmentsByUser = BranchRoleAssignment::query()
+            ->with('role')
+            ->where('branch_id', $branch->id)
+            ->get()
+            ->groupBy('user_id');
+
         return view('admin.branches.show', [
             'branch' => $branch,
             'statusOptions' => BranchStatus::cases(),
             'canUpdateBranch' => $actor->can('update', $branch),
+            'branchAssignments' => $branchAssignments,
+            'roleAssignmentsByUser' => $roleAssignmentsByUser,
+            'canViewStaffDirectory' => $this->staffAdmin->canViewStaffDirectory($actor),
             'recentAudits' => $auditPage['items'],
             'nextAuditCursor' => $auditPage['next_cursor'],
             'hasMoreAudits' => $auditPage['has_more'],

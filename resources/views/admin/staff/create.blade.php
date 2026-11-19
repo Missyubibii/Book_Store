@@ -1,5 +1,5 @@
 {{--
-    Biểu mẫu Khởi tạo Nhân sự mới & Cấp Mật khẩu tạm (Stage 01B.5.1)
+    Biểu mẫu Khởi tạo Nhân sự mới & Cấp Mật khẩu tạm
     - Entry point: GET /quan-tri/nhan-su/tao-moi -> StaffController::create
     - Submit: POST /quan-tri/nhan-su (`admin.staff.store`) -> StaffController::store -> StaffAdministrationService::createStaffAccount
     - Mật khẩu tạm có hiệu lực 24 giờ (`temp_password_expires_at`), băm Bcrypt ngay, không ghi log hay hiển thị lại plaintext.
@@ -7,8 +7,10 @@
 @extends('layouts.admin')
 
 @section('title', 'Tạo Nhân sự mới — Book_Store')
+@section('header_title', 'Tạo nhân sự mới')
 
 @section('content')
+<div class="bs-ad-dashboard-canvas">
     <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
         @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
             <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
@@ -230,4 +232,5 @@
             </div>
         </form>
     </section>
+</div>
 @endsection

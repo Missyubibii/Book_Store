@@ -8,9 +8,11 @@ use App\Enums\AccountStatus;
 use App\Enums\LoginEventType;
 use App\Enums\StaffAccessStatus;
 use App\Models\User;
+use App\Models\UserExternalIdentity;
 use App\Support\LoginEventLogger;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -182,22 +184,25 @@ class GoogleOAuthService
                 ]);
             }
 
-            if ($existingIdentity === null && $hasExternalIdentitiesTable) {
-                UserExternalIdentity::query()->create([
-                    'user_id' => $targetUser->id,
-                    'provider' => 'google',
-                    'provider_subject' => $sub,
-                    'provider_email' => $email,
-                    'linked_at' => now(),
-                ]);
-            }
+            DB::transaction(function () use ($targetUser, $existingIdentity, $hasExternalIdentitiesTable, $sub, $email): void {
+                if ($existingIdentity === null && $hasExternalIdentitiesTable) {
+                    UserExternalIdentity::query()->create([
+                        'user_id' => $targetUser->id,
+                        'provider' => 'google',
+                        'provider_subject' => $sub,
+                        'provider_email' => $email,
+                        'linked_at' => now(),
+                    ]);
+                }
 
-            if ($targetUser->email_verified_at === null) {
-                $targetUser->email_verified_at = now();
-                $targetUser->save();
-            }
+                // Chỉ đánh dấu đã xác thực email khi địa chỉ email Google khớp chính xác với email tài khoản
+                if ($targetUser->email_verified_at === null && Str::lower((string) $targetUser->email) === $email) {
+                    $targetUser->email_verified_at = now();
+                    $targetUser->save();
+                }
+            });
 
-            $user = $targetUser;
+            $user = $targetUser->fresh() ?? $targetUser;
         } elseif ($intent === 'staff_onboard') {
             // LUỒNG 2: Nhân sự kích hoạt định danh Google công ty qua mã mời (Corporate Google Staff Onboarding)
             $staffUser = $onboardUserId ? User::query()->find($onboardUserId) : null;
@@ -214,22 +219,24 @@ class GoogleOAuthService
                 ]);
             }
 
-            if ($existingIdentity === null && $hasExternalIdentitiesTable) {
-                UserExternalIdentity::query()->create([
-                    'user_id' => $staffUser->id,
-                    'provider' => 'google',
-                    'provider_subject' => $sub,
-                    'provider_email' => $email,
-                    'linked_at' => now(),
-                ]);
-            }
+            DB::transaction(function () use ($staffUser, $existingIdentity, $hasExternalIdentitiesTable, $sub, $email): void {
+                if ($existingIdentity === null && $hasExternalIdentitiesTable) {
+                    UserExternalIdentity::query()->create([
+                        'user_id' => $staffUser->id,
+                        'provider' => 'google',
+                        'provider_subject' => $sub,
+                        'provider_email' => $email,
+                        'linked_at' => now(),
+                    ]);
+                }
 
-            if ($staffUser->email_verified_at === null) {
-                $staffUser->email_verified_at = now();
-                $staffUser->save();
-            }
+                if ($staffUser->email_verified_at === null && Str::lower((string) $staffUser->email) === $email) {
+                    $staffUser->email_verified_at = now();
+                    $staffUser->save();
+                }
+            });
 
-            $user = $staffUser;
+            $user = $staffUser->fresh() ?? $staffUser;
         } else {
             // LUỒNG 3: Đăng nhập chuẩn bằng Google (Google OAuth Login)
             if ($existingIdentity !== null) {
@@ -267,33 +274,40 @@ class GoogleOAuthService
                     ]);
                 }
 
-                // Nếu hoàn toàn chưa có email trong hệ thống: Tạo tài khoản khách hàng mới an toàn
+                // Nếu hoàn toàn chưa có email trong hệ thống: Tạo tài khoản khách hàng mới an toàn (Google-only, KHÔNG tạo mật khẩu giả)
                 $displayName = $name !== '' ? $name : explode('@', $email)[0];
+                $passwordColumnNullable = $this->isUsersPasswordNullable();
 
-                $user = new User();
-                $user->name = $displayName;
-                $user->email = $email;
-                $user->password = Hash::make(Str::random(32)); // Mật khẩu ngẫu nhiên an toàn (vẫn có thể đặt lại mật khẩu sau)
-                $user->account_status = AccountStatus::Active;
-                $user->staff_access_status = StaffAccessStatus::NotApplicable;
-                $user->email_verified_at = now(); // Đã xác thực qua Google
+                $user = DB::transaction(function () use ($displayName, $email, $sub, $hasExternalIdentitiesTable, $passwordColumnNullable): User {
+                    $createdUser = new User();
+                    $createdUser->name = $displayName;
+                    $createdUser->email = $email;
+                    // Tuyệt đối không sinh mật khẩu giả ngẫu nhiên cho tài khoản Google-only
+                    $createdUser->password = $passwordColumnNullable ? null : '';
+                    $createdUser->account_status = AccountStatus::Active;
+                    $createdUser->staff_access_status = StaffAccessStatus::NotApplicable;
+                    $createdUser->email_verified_at = now(); // Đã xác thực chính chủ qua Google
 
-                if (Schema::hasColumn('users', 'google_id')) {
-                    $user->google_id = $sub;
-                }
+                    if (Schema::hasColumn('users', 'google_id')) {
+                        $createdUser->google_id = $sub;
+                    }
 
-                $user->save();
+                    $createdUser->save();
+
+                    if ($hasExternalIdentitiesTable) {
+                        UserExternalIdentity::query()->create([
+                            'user_id' => $createdUser->id,
+                            'provider' => 'google',
+                            'provider_subject' => $sub,
+                            'provider_email' => $email,
+                            'linked_at' => now(),
+                        ]);
+                    }
+
+                    return $createdUser;
+                });
+
                 $isNewUser = true;
-
-                if ($hasExternalIdentitiesTable) {
-                    UserExternalIdentity::query()->create([
-                        'user_id' => $user->id,
-                        'provider' => 'google',
-                        'provider_subject' => $sub,
-                        'provider_email' => $email,
-                        'linked_at' => now(),
-                    ]);
-                }
 
                 LoginEventLogger::log(
                     eventType: LoginEventType::RegisterSuccess,
@@ -301,22 +315,25 @@ class GoogleOAuthService
                     email: $email,
                     ipAddress: $request->ip(),
                     userAgent: $request->userAgent(),
+                    authMethod: 'google',
                 );
             }
         }
 
-        // 8. Ghi nhận sự kiện đăng nhập thành công
+        // 8. Ghi nhận sự kiện đăng nhập thành công kèm phương thức `google`
         LoginEventLogger::log(
             eventType: LoginEventType::LoginSuccess,
             userId: $user->id,
             email: $email,
             ipAddress: $request->ip(),
             userAgent: $request->userAgent(),
+            authMethod: 'google',
         );
 
         return [
             'user' => $user,
             'is_new' => $isNewUser,
+            'intent' => $intent,
         ];
     }
 
@@ -360,5 +377,24 @@ class GoogleOAuthService
         }
 
         return $response->json() ?? [];
+    }
+
+    /**
+     * Kiểm tra cột `users.password` đã hỗ trợ NULL trong lược đồ hiện tại hay chưa.
+     */
+    protected function isUsersPasswordNullable(): bool
+    {
+        try {
+            $columns = Schema::getColumns('users');
+            foreach ($columns as $column) {
+                if (($column['name'] ?? null) === 'password') {
+                    return (bool) ($column['nullable'] ?? false);
+                }
+            }
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return false;
     }
 }

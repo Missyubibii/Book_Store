@@ -1,13 +1,15 @@
 {{--
-    Màn hình Chỉ đọc Kho Trung tâm Book_Store (Stage 01B.4)
+    Màn hình Chỉ đọc Kho Trung tâm Book_Store
     - Entry point: GET /quan-tri/kho-trung-tam (`admin.central-warehouse.show`)
     - Chỉ đọc tuyệt đối: không có biểu mẫu sửa đổi, chuyển đổi loại, ngừng hoạt động hoặc xóa.
 --}}
 @extends('layouts.admin')
 
 @section('title', 'Kho Trung tâm Book_Store (Chỉ đọc) — Book_Store')
+@section('header_title', 'Kho trung tâm')
 
 @section('content')
+<div class="bs-ad-dashboard-canvas">
     <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
         @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
             <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
@@ -213,4 +215,5 @@
             @endforeach
         </ul>
     </section>
+</div>
 @endsection

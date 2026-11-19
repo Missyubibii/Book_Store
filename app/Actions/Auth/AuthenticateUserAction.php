@@ -112,13 +112,14 @@ class AuthenticateUserAction
         // 8. Xóa bộ đếm throttle
         $request->clearRateLimiter();
 
-        // 9. Ghi nhật ký đăng nhập thành công
+        // 9. Ghi nhật ký đăng nhập thành công kèm phương thức `password`
         LoginEventLogger::log(
             eventType: LoginEventType::LoginSuccess,
             userId: $user->id,
             email: $email,
             ipAddress: $request->ip(),
-            userAgent: $request->userAgent()
+            userAgent: $request->userAgent(),
+            authMethod: 'password'
         );
 
         return $user;

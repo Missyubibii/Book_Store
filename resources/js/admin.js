@@ -485,4 +485,287 @@ export const initAdminUi = (root = document) => {
     bindFormDisclosures(root);
     bindAuditDetailDrawer(root);
     initSmartScroll(root);
+    initAdminShell(root);
+    initUiModals(root);
+};
+
+/**
+ * Khởi tạo hộp thoại xác nhận / Modal có kiểm soát tiêu điểm:
+ * - Mở modal từ `[data-ui-modal-open="modal-id"]`.
+ * - Đóng bằng nút `[data-ui-modal-close]`, click nền mờ hoặc phím Escape.
+ * - Tự động khôi phục tiêu điểm về nút kích hoạt sau khi đóng.
+ *
+ * @param {Document|HTMLElement} root Vùng DOM cần gắn trình lắng nghe sự kiện.
+ * @returns {void}
+ */
+const initUiModals = (root = document) => {
+    const openers = root.querySelectorAll('[data-ui-modal-open]');
+    openers.forEach((opener) => {
+        if (opener.dataset.bsModalBound === '1') {
+            return;
+        }
+        opener.dataset.bsModalBound = '1';
+
+        opener.addEventListener('click', () => {
+            const targetId = opener.getAttribute('data-ui-modal-open');
+            const modal = targetId ? document.getElementById(targetId) : null;
+            if (!modal) {
+                return;
+            }
+
+            modal.classList.remove('bs-hidden');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            modal.__returnFocusEl = opener;
+
+            const focusable = modal.querySelector('button:not([disabled]), input:not([disabled]), a[href]');
+            if (focusable && typeof focusable.focus === 'function') {
+                focusable.focus();
+            }
+        });
+    });
+
+    const modals = root.querySelectorAll('[data-ui-modal]');
+    modals.forEach((modal) => {
+        if (modal.dataset.bsModalBound === '1') {
+            return;
+        }
+        modal.dataset.bsModalBound = '1';
+
+        const closeModal = () => {
+            modal.classList.add('bs-hidden');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+            if (modal.__returnFocusEl && typeof modal.__returnFocusEl.focus === 'function') {
+                modal.__returnFocusEl.focus();
+            }
+        };
+
+        modal.querySelectorAll('[data-ui-modal-close]').forEach((btn) => {
+            btn.addEventListener('click', closeModal);
+        });
+
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !modal.classList.contains('bs-hidden')) {
+                closeModal();
+            }
+        });
+    });
+};
+
+/**
+ * Khởi tạo tương tác khung vỏ Quản trị:
+ * - Thu gọn / mở rộng Sidebar desktop (lưu trạng thái qua localStorage, kích hoạt transition sau khi đồng bộ).
+ * - Drawer Sidebar trên thiết bị di động (Hamburger, Backdrop, Escape, quản lý tiêu điểm).
+ * - Menu tài khoản người dùng (Toggle, Outside click, Escape).
+ * - Bộ chọn khoảng thời gian tùy chỉnh trên trang Tổng quan.
+ *
+ * @param {Document|HTMLElement} root Vùng DOM cần khởi tạo.
+ * @returns {void}
+ */
+const initAdminShell = (root = document) => {
+    const shell = root.querySelector('[data-admin-shell]');
+    const sidebar = root.querySelector('[data-admin-sidebar]');
+    const sidebarToggleBtn = root.querySelector('[data-sidebar-toggle]');
+    const mobileCloseBtns = root.querySelectorAll('[data-mobile-sidebar-close]');
+    const mobileBackdrop = root.querySelector('[data-mobile-sidebar-backdrop]');
+
+    const STORAGE_KEY = 'bs_admin_sidebar_collapsed';
+    const isDesktopViewport = () => window.innerWidth >= 1024;
+
+    if (shell && sidebar && sidebarToggleBtn && sidebarToggleBtn.dataset.bsBound !== '1') {
+        sidebarToggleBtn.dataset.bsBound = '1';
+
+        const applyDesktopCollapsedState = (collapsed) => {
+            const isCollapsed = Boolean(collapsed);
+            document.documentElement.setAttribute('data-sidebar-collapsed', isCollapsed ? 'true' : 'false');
+            document.documentElement.classList.toggle('is-sidebar-collapsed', isCollapsed);
+            sidebar.classList.toggle('is-collapsed', isCollapsed);
+            shell.classList.toggle('is-sidebar-collapsed', isCollapsed);
+            if (isDesktopViewport()) {
+                sidebarToggleBtn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+                sidebarToggleBtn.setAttribute(
+                    'title',
+                    isCollapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'
+                );
+            }
+        };
+
+        const setMobileDrawerOpen = (open) => {
+            sidebar.classList.toggle('is-mobile-open', open);
+            if (mobileBackdrop) {
+                mobileBackdrop.classList.toggle('is-visible', open);
+                mobileBackdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+            }
+            if (!isDesktopViewport()) {
+                sidebarToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                sidebarToggleBtn.setAttribute(
+                    'title',
+                    open ? 'Đóng danh mục quản trị' : 'Mở danh mục quản trị'
+                );
+            }
+            document.body.style.overflow = open ? 'hidden' : '';
+
+            if (open) {
+                const firstLink = sidebar.querySelector('a.bs-ad-sidebar-link, a.bs-ad-sidebar-brand');
+                if (firstLink && typeof firstLink.focus === 'function') {
+                    firstLink.focus();
+                }
+            } else if (typeof sidebarToggleBtn.focus === 'function') {
+                sidebarToggleBtn.focus();
+            }
+        };
+
+        // Khôi phục trạng thái thu gọn Desktop từ localStorage hoặc thuộc tính pre-paint trên <html>
+        try {
+            const savedCollapsed =
+                document.documentElement.getAttribute('data-sidebar-collapsed') === 'true' ||
+                window.localStorage.getItem(STORAGE_KEY) === '1';
+            applyDesktopCollapsedState(savedCollapsed);
+        } catch {
+            // Bỏ qua nếu trình duyệt chặn localStorage
+        }
+
+        // Chỉ bật CSS transition cho chiều rộng Sidebar sau khi đã đồng bộ xong trạng thái khởi tạo
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => {
+                document.documentElement.setAttribute('data-sidebar-ready', 'true');
+            });
+        } else {
+            document.documentElement.setAttribute('data-sidebar-ready', 'true');
+        }
+
+        if (!isDesktopViewport()) {
+            sidebarToggleBtn.setAttribute('aria-expanded', 'false');
+            sidebarToggleBtn.setAttribute('title', 'Mở danh mục quản trị');
+        }
+
+        sidebarToggleBtn.addEventListener('click', () => {
+            if (isDesktopViewport()) {
+                const nextCollapsed = !sidebar.classList.contains('is-collapsed');
+                applyDesktopCollapsedState(nextCollapsed);
+                try {
+                    window.localStorage.setItem(STORAGE_KEY, nextCollapsed ? '1' : '0');
+                } catch {
+                    // Bỏ qua nếu trình duyệt chặn localStorage
+                }
+            } else {
+                setMobileDrawerOpen(!sidebar.classList.contains('is-mobile-open'));
+            }
+        });
+
+        mobileCloseBtns.forEach((btn) => {
+            btn.addEventListener('click', () => setMobileDrawerOpen(false));
+        });
+
+        if (mobileBackdrop) {
+            mobileBackdrop.addEventListener('click', () => setMobileDrawerOpen(false));
+        }
+
+        sidebar.querySelectorAll('a.bs-ad-sidebar-link').forEach((link) => {
+            link.addEventListener('click', () => {
+                if (!isDesktopViewport() && sidebar.classList.contains('is-mobile-open')) {
+                    setMobileDrawerOpen(false);
+                }
+            });
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && sidebar.classList.contains('is-mobile-open')) {
+                setMobileDrawerOpen(false);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (isDesktopViewport() && sidebar.classList.contains('is-mobile-open')) {
+                sidebar.classList.remove('is-mobile-open');
+                if (mobileBackdrop) {
+                    mobileBackdrop.classList.remove('is-visible');
+                    mobileBackdrop.setAttribute('aria-hidden', 'true');
+                }
+                document.body.style.overflow = '';
+                sidebarToggleBtn.setAttribute(
+                    'aria-expanded',
+                    sidebar.classList.contains('is-collapsed') ? 'false' : 'true'
+                );
+            }
+        });
+    }
+
+    // 3. Menu tài khoản người dùng (Topbar Dropdown)
+    const userMenuToggle = root.querySelector('[data-user-menu-toggle]');
+    const userMenuDropdown = root.querySelector('[data-user-menu-dropdown]');
+
+    if (userMenuToggle && userMenuDropdown && userMenuToggle.dataset.bsBound !== '1') {
+        userMenuToggle.dataset.bsBound = '1';
+
+        const setUserMenuOpen = (open) => {
+            userMenuDropdown.classList.toggle('is-open', open);
+            userMenuDropdown.hidden = !open;
+            userMenuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
+
+        userMenuToggle.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const isOpen = userMenuDropdown.classList.contains('is-open');
+            setUserMenuOpen(!isOpen);
+        });
+
+        document.addEventListener('click', (event) => {
+            if (
+                userMenuDropdown.classList.contains('is-open') &&
+                !userMenuDropdown.contains(event.target) &&
+                !userMenuToggle.contains(event.target)
+            ) {
+                setUserMenuOpen(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && userMenuDropdown.classList.contains('is-open')) {
+                setUserMenuOpen(false);
+                userMenuToggle.focus();
+            }
+        });
+    }
+
+    // 4. Bộ chọn khoảng thời gian tùy chỉnh (Custom Date Range)
+    const customPeriodToggle = root.querySelector('[data-custom-period-toggle]');
+    const customPeriodPanel = root.querySelector('[data-custom-period-panel]');
+    const customPeriodCancel = root.querySelector('[data-custom-period-cancel]');
+
+    if (customPeriodToggle && customPeriodPanel && customPeriodToggle.dataset.bsBound !== '1') {
+        customPeriodToggle.dataset.bsBound = '1';
+
+        const setCustomPanelOpen = (open) => {
+            customPeriodPanel.classList.toggle('is-open', open);
+            customPeriodPanel.hidden = !open;
+            customPeriodToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
+
+        customPeriodToggle.addEventListener('click', (event) => {
+            event.preventDefault();
+            setCustomPanelOpen(customPeriodPanel.hidden);
+        });
+
+        if (customPeriodCancel) {
+            customPeriodCancel.addEventListener('click', () => {
+                setCustomPanelOpen(false);
+                customPeriodToggle.focus();
+            });
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !customPeriodPanel.hidden) {
+                setCustomPanelOpen(false);
+                customPeriodToggle.focus();
+            }
+        });
+    }
 };

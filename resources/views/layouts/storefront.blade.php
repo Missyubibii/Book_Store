@@ -164,6 +164,10 @@
                                         </a>
                                     @endunless
 
+                                    <a href="{{ route('account.security') }}" class="bs-sf-btn-outline-sm">
+                                        Bảo mật &amp; Phương thức đăng nhập
+                                    </a>
+
                                     <form method="POST" action="{{ route('logout') }}" data-auth-form x-data="authForm" @submit="handleSubmit">
                                         @csrf
                                         <button type="submit" class="bs-sf-btn-ghost" data-loading-text="Đang đăng xuất..." :disabled="submitting" :aria-busy="submitting ? 'true' : 'false'">

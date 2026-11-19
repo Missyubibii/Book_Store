@@ -7,6 +7,7 @@ namespace App\Support;
 use App\Enums\LoginEventType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class LoginEventLogger
@@ -19,23 +20,31 @@ class LoginEventLogger
      * @param  string|null  $email  Email liên quan
      * @param  string|null  $ipAddress  Địa chỉ IP
      * @param  string|null  $userAgent  Thông tin User-Agent
+     * @param  string|null  $authMethod  Phương thức xác thực thực tế (`password`, `google` hoặc `null`)
      */
     public static function log(
         LoginEventType $eventType,
         ?int $userId = null,
         ?string $email = null,
         ?string $ipAddress = null,
-        ?string $userAgent = null
+        ?string $userAgent = null,
+        ?string $authMethod = null
     ): void {
         try {
-            DB::table('login_events')->insert([
+            $payload = [
                 'user_id' => $userId,
                 'email' => $email ? mb_substr($email, 0, 255) : null,
                 'event_type' => $eventType->value,
                 'ip_address' => $ipAddress ? mb_substr($ipAddress, 0, 45) : null,
                 'user_agent' => $userAgent ? mb_substr($userAgent, 0, 1000) : null,
                 'occurred_at' => now(),
-            ]);
+            ];
+
+            if (Schema::hasColumn('login_events', 'auth_method')) {
+                $payload['auth_method'] = $authMethod !== null ? mb_substr($authMethod, 0, 32) : null;
+            }
+
+            DB::table('login_events')->insert($payload);
         } catch (Throwable $e) {
             // Chính sách an toàn: Không làm sập ứng dụng hay gián đoạn trải nghiệm người dùng
             // nếu việc ghi nhật ký audit tạm thời lỗi, nhưng ghi nhận vào system log để điều tra.

@@ -1,5 +1,5 @@
 {{--
-    Chi tiết Hồ sơ Nhân sự, Phân công Đa chi nhánh & Kiểm soát Trạng thái (Stage 01B.5.1)
+    Chi tiết Hồ sơ Nhân sự, Phân công Đa chi nhánh & Kiểm soát Trạng thái
     - Entry point: GET /quan-tri/nhan-su/{staff} (`admin.staff.show`) -> StaffController::show
     - Gồm các luồng có kiểm soát giao dịch nguyên tử:
       1. Cập nhật phân công chi nhánh & đa vai trò (`admin.staff.assignments.upsert`)
@@ -10,8 +10,10 @@
 @extends('layouts.admin')
 
 @section('title', 'Hồ sơ Nhân sự: ' . $staff->name . ' — Book_Store')
+@section('header_title', 'Chi tiết tài khoản nhân sự')
 
 @section('content')
+<div class="bs-ad-dashboard-canvas">
     @php
         $staffPillClass = match ($staff->staff_access_status) {
             \App\Enums\StaffAccessStatus::Active => 'bs-ad-pill-active',
@@ -32,77 +34,189 @@
         $openProposeForm = old('_form') === 'propose_activation' && $errors->any();
     @endphp
 
-    <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
-        @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
-            <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
-            <span aria-hidden="true">/</span>
-        @endif
-        <a href="{{ route('admin.staff.index') }}">Nhân sự</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">{{ $staff->name }}</span>
-    </nav>
+    @php
+        $isSuperAdminViewer = auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user());
+        $backRoute = $isSuperAdminViewer ? route('admin.accounts.index', ['tab' => 'staff']) : route('admin.staff.index');
+        $activeAssignmentCount = collect($assignmentsWithRoles)->filter(
+            fn (array $item): bool => $item['assignment']->status === \App\Enums\BranchAssignmentStatus::Active
+        )->count();
+    @endphp
 
-    <div class="bs-ad-page-head">
-        <div class="bs-ad-page-head-copy">
-            <p class="bs-ad-eyebrow">Hồ sơ Nhân sự &amp; Thẩm quyền Chi nhánh</p>
-            <h1 class="bs-ad-title">{{ $staff->name }}</h1>
-            <p class="bs-ad-subtitle">
-                Mã nhân sự <span class="bs-ad-code">{{ $staff->staffProfile?->staff_code ?? ('USER-' . $staff->id) }}</span>
-                — {{ $staff->email }}
-            </p>
-        </div>
+    <x-admin.page-header
+        :title="$staff->name"
+        :subtitle="'Mã nhân sự ' . ($staff->staffProfile?->staff_code ?? ('USER-' . $staff->id)) . ' — ' . $staff->email"
+    >
+        <x-slot:breadcrumb>
+            <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
+                @if ($isSuperAdminViewer)
+                    <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
+                    <span aria-hidden="true">/</span>
+                    <a href="{{ route('admin.accounts.index', ['tab' => 'staff']) }}">Quản lý tài khoản</a>
+                @else
+                    <a href="{{ route('admin.staff.index') }}">Quản lý tài khoản</a>
+                @endif
+                <span aria-hidden="true">/</span>
+                <span aria-current="page">{{ $staff->name }}</span>
+            </nav>
+        </x-slot:breadcrumb>
 
-        <div class="bs-ad-page-actions">
-            <a href="{{ route('admin.staff.index') }}" class="bs-ad-btn-outline">
-                Quay lại danh bạ
-            </a>
-        </div>
+        <x-slot:actions>
+            @if ($canViewGlobalAuditLogs)
+                <x-admin.button variant="secondary" :href="route('admin.audit-logs.index', ['target_user_id' => $staff->id])">
+                    Xem tất cả lịch sử
+                </x-admin.button>
+            @endif
+            <x-admin.button variant="secondary" :href="$backRoute">
+                Quay lại danh sách
+            </x-admin.button>
+        </x-slot:actions>
+    </x-admin.page-header>
+
+    {{-- 4 KPI định danh & trạng thái nhân sự (luôn hiển thị ngay) --}}
+    <div class="bs-ad-kpi-grid" aria-label="Trạng thái và định danh nhân sự">
+        <x-admin.kpi-card
+            label="Quyền truy cập nhân sự"
+            :value="$staff->staff_access_status?->label() ?? 'Không xác định'"
+            :subtext="'Tài khoản: ' . ($staff->account_status?->label() ?? 'Đang hoạt động')"
+            :variant="$staff->staff_access_status === \App\Enums\StaffAccessStatus::Active ? 'green' : ($staff->staff_access_status === \App\Enums\StaffAccessStatus::Pending ? 'amber' : 'blue')"
+        />
+
+        <x-admin.kpi-card
+            label="Phân công đang hoạt động"
+            :value="number_format($activeAssignmentCount, 0, ',', '.')"
+            :subtext="'Tổng phân công: ' . number_format(count($assignmentsWithRoles), 0, ',', '.') . ' đơn vị'"
+            variant="blue"
+        />
+
+        <x-admin.kpi-card
+            label="Phương thức đã liên kết"
+            :value="$staff->authenticationMethodsLabel()"
+            :subtext="'Email: ' . ($staff->hasVerifiedEmail() ? 'Đã xác thực' : 'Chưa xác thực') . ' • Gần nhất: ' . $staff->lastSuccessfulLoginMethodLabel()"
+            variant="purple"
+        />
+
+        <x-admin.kpi-card
+            label="Chức danh & Nhận việc"
+            :value="$staff->staffProfile?->job_title ?: 'Chưa cập nhật'"
+            :subtext="$staff->staffProfile?->hired_at ? 'Nhận việc: ' . format_date($staff->staffProfile->hired_at) : 'Chưa ghi nhận ngày nhận việc'"
+            variant="amber"
+        />
     </div>
 
-    <section class="bs-ad-identity-grid" aria-label="Trạng thái và định danh nhân sự">
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Trạng thái truy cập nhân sự</p>
-            <p class="bs-ad-stat-value">
-                <span class="bs-ad-pill {{ $staffPillClass }}">
-                    {{ $staff->staff_access_status?->label() ?? 'Không xác định' }}
-                </span>
-            </p>
-        </article>
-
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Trạng thái tài khoản khách hàng</p>
-            <p class="bs-ad-stat-value">
-                <span class="bs-ad-pill {{ $accountPillClass }}">
-                    {{ $staff->account_status?->label() ?? 'Đang hoạt động' }}
-                </span>
-            </p>
-        </article>
-
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Mật khẩu tạm / Bắt buộc đổi</p>
-            <p class="bs-ad-stat-value">
-                @if (! $staff->must_change_password)
-                    Không yêu cầu đổi mật khẩu
-                @elseif ($staff->isTemporaryPasswordExpired())
-                    Đã hết hạn ({{ format_datetime($staff->temp_password_expires_at) }})
-                @elseif ($staff->temp_password_expires_at !== null)
-                    Còn hiệu lực đến {{ format_datetime($staff->temp_password_expires_at) }}
+    {{-- Khối Xem trước Dữ liệu (Data-First Preview Cards: Phân công & Bảo mật/Phê duyệt) --}}
+    <div class="bs-ad-dash-columns bs-ad-section-gap">
+        <div class="bs-ad-dash-col-main">
+            <x-admin.preview-card
+                title="Phân công chi nhánh & kho"
+                subtitle="Bảng xem nhanh các đơn vị và vai trò đang gán cho nhân sự này."
+                :count="count($assignmentsWithRoles) . ' đơn vị'"
+                heading-id="staff-assignments-preview-heading"
+            >
+                @if ($assignmentsWithRoles === [])
+                    <x-admin.empty-state description="Nhân sự này chưa có phân công chi nhánh hoặc kho nào." />
                 @else
-                    Bắt buộc đổi ở lần đăng nhập kế tiếp
+                    <x-admin.bounded-scroll max-height="sm" label="Bảng xem trước phân công chi nhánh của nhân sự">
+                        <table class="bs-ad-table">
+                            <thead>
+                                <tr>
+                                    <th>CHI NHÁNH / KHO</th>
+                                    <th>VAI TRÒ</th>
+                                    <th>TRẠNG THÁI</th>
+                                    <th class="bs-ad-th-action">THAO TÁC</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($assignmentsWithRoles as $previewItem)
+                                    @php
+                                        $pBranch = $previewItem['branch'];
+                                        $pAssign = $previewItem['assignment'];
+                                        $pRoles = $previewItem['roles'];
+                                        $pIsActive = $pAssign->status === \App\Enums\BranchAssignmentStatus::Active;
+                                        $pDetailHref = $pBranch->type === \App\Enums\BranchType::CentralWarehouse
+                                            ? route('admin.central-warehouse.show')
+                                            : route('admin.branches.show', $pBranch);
+                                    @endphp
+                                    <tr>
+                                        <td>
+                                            <div class="bs-ad-branch-cell">
+                                                <span class="bs-ad-user-name">{{ $pBranch->name }}</span>
+                                                <span class="bs-ad-branch-code-tag">{{ $pBranch->code }}</span>
+                                            </div>
+                                        </td>
+                                        @php
+                                            $pRolesCollection = collect($pRoles);
+                                        @endphp
+                                        <td>
+                                            @if ($pRolesCollection->isEmpty())
+                                                <span class="bs-ad-muted-meta">Chưa gán vai trò</span>
+                                            @else
+                                                <div class="bs-ad-login-badges">
+                                                    @foreach ($pRolesCollection->take(2) as $pRole)
+                                                        <x-admin.status-badge variant="info">{{ $pRole->name }}</x-admin.status-badge>
+                                                    @endforeach
+                                                    @if ($pRolesCollection->count() > 2)
+                                                        <x-admin.status-badge variant="neutral">+{{ $pRolesCollection->count() - 2 }}</x-admin.status-badge>
+                                                    @endif
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <x-admin.status-badge :variant="$pIsActive ? 'success' : 'neutral'" :dot="$pIsActive">
+                                                {{ $pAssign->status->label() }}
+                                            </x-admin.status-badge>
+                                        </td>
+                                        <td class="bs-ad-td-action">
+                                            <x-admin.button variant="secondary" size="sm" :href="$pDetailHref">
+                                                Xem chi tiết
+                                            </x-admin.button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </x-admin.bounded-scroll>
                 @endif
-            </p>
-        </article>
+            </x-admin.preview-card>
+        </div>
 
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Chức danh &amp; Nhận việc</p>
-            <p class="bs-ad-stat-value">
-                {{ $staff->staffProfile?->job_title ?: 'Chưa cập nhật' }}
-                @if ($staff->staffProfile?->hired_at)
-                    — {{ format_date($staff->staffProfile->hired_at) }}
-                @endif
-            </p>
-        </article>
-    </section>
+        <div class="bs-ad-dash-col-side">
+            <x-admin.preview-card
+                title="Bảo mật, Vai trò & Phê duyệt"
+                subtitle="Tóm tắt nhanh trạng thái xác thực, vai trò hiệu lực và phê duyệt."
+                heading-id="staff-security-preview-heading"
+                :footer-href="$pendingProposal !== null && $canReviewPendingProposal ? route('admin.staff.approvals.index') : null"
+                footer-label="Mở hàng đợi phê duyệt"
+            >
+                <x-admin.compact-status-list :items="[
+                    [
+                        'label' => 'Xác thực email',
+                        'value' => $staff->hasVerifiedEmail() ? 'Đã xác thực' : 'Chưa xác thực',
+                        'dot' => $staff->hasVerifiedEmail() ? 'green' : 'amber',
+                    ],
+                    [
+                        'label' => 'Phương thức đã liên kết',
+                        'value' => $staff->authenticationMethodsLabel(),
+                        'dot' => $staff->hasLinkedGoogleIdentity() ? 'blue' : 'neutral',
+                    ],
+                    [
+                        'label' => 'Đăng nhập gần nhất',
+                        'value' => $staff->lastSuccessfulLoginMethodLabel(),
+                        'dot' => 'neutral',
+                    ],
+                    [
+                        'label' => 'Vai trò toàn hệ thống',
+                        'value' => $globalRoles->isNotEmpty() ? $globalRoles->pluck('name')->implode(', ') : 'Không có',
+                        'dot' => $globalRoles->isNotEmpty() ? 'blue' : 'neutral',
+                    ],
+                    [
+                        'label' => 'Đề xuất kích hoạt',
+                        'value' => $pendingProposal !== null ? 'Đang chờ phê duyệt' : ($staff->staff_access_status === \App\Enums\StaffAccessStatus::Active ? 'Đã kích hoạt' : 'Chưa có đề xuất chờ'),
+                        'dot' => $pendingProposal !== null ? 'amber' : ($staff->staff_access_status === \App\Enums\StaffAccessStatus::Active ? 'green' : 'neutral'),
+                    ],
+                ]" />
+            </x-admin.preview-card>
+        </div>
+    </div>
 
     <div class="bs-ad-staff-detail-grid">
         <div class="bs-ad-stack">
@@ -819,6 +933,72 @@
                 </div>
             </section>
 
+            <section class="bs-ad-panel" aria-labelledby="google-identity-heading">
+                <div class="bs-ad-subcard-head">
+                    <div>
+                        <h2 id="google-identity-heading" class="bs-ad-panel-title">Phương thức Đăng nhập &amp; Định danh Google Doanh nghiệp</h2>
+                        <p class="bs-ad-panel-subtitle">Liên kết tài khoản Google công ty cho phép nhân sự đăng nhập an toàn không cần mật khẩu.</p>
+                    </div>
+                </div>
+
+                <div class="bs-ad-stack" style="gap: 1rem;">
+                    @php
+                        $googleId = \Illuminate\Support\Facades\Schema::hasTable('user_external_identities')
+                            ? $staff->googleIdentity
+                            : null;
+                    @endphp
+
+                    <div class="bs-ad-assignment-item">
+                        <div class="bs-ad-assignment-main">
+                            <strong class="bs-ad-primary-text">Google OAuth 2.0</strong>
+                            <p class="bs-ad-assignment-meta">
+                                @if ($googleId)
+                                    Đã liên kết: <strong>{{ $googleId->provider_email }}</strong>
+                                    (Subject ID: <code class="bs-ad-code">{{ $googleId->masked_subject }}</code>)
+                                    — Thời điểm: {{ format_datetime($googleId->linked_at) }}
+                                @else
+                                    Chưa liên kết tài khoản Google doanh nghiệp.
+                                @endif
+                            </p>
+                        </div>
+                        <div>
+                            @if ($googleId)
+                                <span class="bs-ad-pill bs-ad-pill-active">Đã liên kết</span>
+                            @else
+                                <span class="bs-ad-pill bs-ad-pill-inactive">Chưa liên kết</span>
+                            @endif
+                        </div>
+                    </div>
+
+                    @if (! $googleId && ($canManageStaff ?? false))
+                        <div class="bs-ad-invite-box">
+                            <form method="POST" action="{{ route('admin.staff.google-invite', $staff) }}">
+                                @csrf
+                                <button type="submit" class="bs-ad-btn-outline">
+                                    Tạo liên kết mời Google Onboarding (24h)
+                                </button>
+                            </form>
+
+                            @if (session('generated_google_invite_url'))
+                                <div class="bs-ad-invite-result" style="margin-top: 0.75rem;">
+                                    <p class="bs-ad-secondary-text" style="font-weight: 500; margin-bottom: 0.25rem;">
+                                        Liên kết mời có chữ ký số (Hiệu lực trong 24 giờ — Gửi trực tiếp cho nhân sự):
+                                    </p>
+                                    <input
+                                        type="text"
+                                        readonly
+                                        value="{{ session('generated_google_invite_url') }}"
+                                        class="bs-ad-input"
+                                        style="font-family: monospace; font-size: 0.8125rem;"
+                                        onclick="this.select();"
+                                    />
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+            </section>
+
             <section class="bs-ad-panel" aria-labelledby="audit-history-heading">
                 <div class="bs-ad-subcard-head">
                     <div>
@@ -915,4 +1095,5 @@
     </div>
 
     @include('admin.audit-logs.partials.drawer')
+</div>
 @endsection

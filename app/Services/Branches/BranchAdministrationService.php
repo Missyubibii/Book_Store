@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Services\Branches;
 
 use App\Enums\AuditAction;
+use App\Enums\BranchAssignmentStatus;
 use App\Enums\BranchStatus;
 use App\Enums\BranchType;
 use App\Exceptions\DomainInvariantException;
 use App\Models\AuditLog;
 use App\Models\Branch;
+use App\Models\BranchAssignment;
 use App\Models\User;
 use App\Services\Authorization\AuthorizationService;
 use App\Services\Authorization\DomainGuardService;
@@ -75,10 +77,16 @@ class BranchAdministrationService
             ->where('status', BranchStatus::Active->value)
             ->count();
 
+        $activeStaffTotal = BranchAssignment::query()
+            ->where('status', BranchAssignmentStatus::Active->value)
+            ->whereHas('branch', fn ($q) => $q->where('type', BranchType::RetailBranch->value))
+            ->count();
+
         return [
             'total' => $total,
             'active' => $active,
             'inactive' => max(0, $total - $active),
+            'active_staff_total' => $activeStaffTotal,
         ];
     }
 
@@ -96,7 +104,10 @@ class BranchAdministrationService
         $this->ensureGlobalPermission($actor, 'branches.view');
 
         $query = Branch::query()
-            ->where('type', BranchType::RetailBranch->value);
+            ->where('type', BranchType::RetailBranch->value)
+            ->withCount([
+                'branchAssignments as active_staff_count' => fn ($q) => $q->where('status', BranchAssignmentStatus::Active->value),
+            ]);
 
         if ($status !== null) {
             $query->where('status', $status->value);

@@ -1,17 +1,20 @@
 <?php
 
+use App\Http\Controllers\Admin\AccountManagementController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\BranchController;
 use App\Http\Controllers\Admin\CentralWarehouseController;
 use App\Http\Controllers\Admin\StaffApprovalController;
 use App\Http\Controllers\Admin\StaffController;
+use App\Http\Controllers\Auth\AccountSecurityController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Staff\MandatoryPasswordChangeController;
+use App\Http\Controllers\Staff\StaffGoogleOnboardingController;
 use App\Http\Controllers\Storefront\HomeController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,11 +40,15 @@ Route::middleware('guest')->group(function () {
     // Đăng nhập
     Route::get('/dang-nhap', [LoginController::class, 'create'])->name('login');
     Route::post('/dang-nhap', [LoginController::class, 'store']);
-
-    // Đăng nhập Google OAuth (Stage 01B.5.8)
-    Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('auth.google.redirect');
-    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Tuyến đường Google OAuth (Dành cho cả Khách đăng nhập & Người dùng liên kết)
+|--------------------------------------------------------------------------
+*/
+Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('auth.google.redirect');
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
 
 /*
 |--------------------------------------------------------------------------
@@ -67,7 +74,22 @@ Route::middleware(['auth', 'account.active'])->group(function () {
     Route::post('/xac-thuc-email/demo', [EmailVerificationController::class, 'verifyDemo'])
         ->middleware('throttle:6,1')
         ->name('verification.demo');
+
+    // Cài đặt bảo mật & Phương thức đăng nhập người dùng (Stage 01B.6)
+    Route::get('/tai-khoan/bao-mat', [AccountSecurityController::class, 'show'])
+        ->name('account.security');
+
+    Route::post('/tai-khoan/lien-ket-google', [AccountSecurityController::class, 'linkGoogle'])
+        ->name('account.google.link');
+
+    Route::post('/tai-khoan/huy-lien-ket-google', [AccountSecurityController::class, 'unlinkGoogle'])
+        ->name('account.google.unlink');
 });
+
+// Liên kết tài khoản Google Doanh nghiệp có chữ ký số bảo mật cho nhân sự (Corporate Google Onboarding)
+Route::get('/nhan-su/onboarding/google/{user}', [StaffGoogleOnboardingController::class, 'claim'])
+    ->whereNumber('user')
+    ->name('staff.onboarding.google.claim');
 
 /*
 |--------------------------------------------------------------------------
@@ -192,6 +214,26 @@ Route::middleware(['auth', 'account.active', 'staff.active'])
         Route::patch('/nhan-su/{staff}/khoi-phuc', [StaffController::class, 'reactivate'])
             ->whereNumber('staff')
             ->name('staff.reactivate');
+
+        // Tạo liên kết mời Google Onboarding cho nhân sự
+        Route::post('/nhan-su/{staff}/tao-link-google', [StaffGoogleOnboardingController::class, 'generateInviteLink'])
+            ->whereNumber('staff')
+            ->name('staff.google-invite');
+
+        // Trung tâm Quản trị Tài khoản Thống nhất (Stage 01B.6 - Super Admin only)
+        Route::get('/tai-khoan', [AccountManagementController::class, 'index'])
+            ->middleware('super_admin.effective')
+            ->name('accounts.index');
+
+        Route::get('/tai-khoan/khach-hang/{user}', [AccountManagementController::class, 'showCustomer'])
+            ->whereNumber('user')
+            ->middleware('super_admin.effective')
+            ->name('accounts.customer.show');
+
+        Route::patch('/tai-khoan/khach-hang/{user}/trang-thai', [AccountManagementController::class, 'updateCustomerStatus'])
+            ->whereNumber('user')
+            ->middleware('super_admin.effective')
+            ->name('accounts.customer.status');
 
         Route::get('/nhat-ky-hoat-dong', [AuditLogController::class, 'index'])
             ->middleware('super_admin.effective')

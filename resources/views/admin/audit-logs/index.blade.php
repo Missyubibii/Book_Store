@@ -1,5 +1,5 @@
 {{--
-    Trang Nhật ký Hoạt động & Kiểm toán Hệ thống (Stage 01B.5.2)
+    Trang Nhật ký Hoạt động & Kiểm toán Hệ thống
     - Entry point: GET /quan-tri/nhat-ky-hoat-dong (`admin.audit-logs.index`)
     - Chỉ dành cho Quản trị viên cấp cao có hiệu lực (`super_admin.effective`).
     - Hiển thị danh sách phân trang, hỗ trợ tìm kiếm, lọc khoảng ngày, hành động, người thực hiện và ngữ cảnh nhân sự/chi nhánh.
@@ -8,8 +8,10 @@
 @extends('layouts.admin')
 
 @section('title', 'Nhật ký Hoạt động Hệ thống — Book_Store')
+@section('header_title', 'Nhật ký hoạt động')
 
 @section('content')
+<div class="bs-ad-dashboard-canvas">
     <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
         <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
         <span aria-hidden="true">/</span>
@@ -26,7 +28,7 @@
         </div>
 
         <div class="bs-ad-page-actions">
-            <a href="{{ route('admin.staff.index') }}" class="bs-ad-btn-outline">Danh bạ nhân sự</a>
+            <a href="{{ route('admin.accounts.index') }}" class="bs-ad-btn-outline">Quản lý tài khoản</a>
             <a href="{{ route('admin.dashboard') }}" class="bs-ad-btn-outline">Về tổng quan</a>
         </div>
     </div>
@@ -235,4 +237,5 @@
     </section>
 
     @include('admin.audit-logs.partials.drawer')
+</div>
 @endsection

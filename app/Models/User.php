@@ -47,6 +47,20 @@ class User extends Authenticatable implements MustVerifyEmail
     ];
 
     /**
+     * Khởi tạo các quy tắc vòng đời mô hình User:
+     * - Khi thay đổi địa chỉ email, tự động xóa dấu xác thực `email_verified_at`
+     *   để yêu cầu xác thực lại địa chỉ email mới theo chính sách bảo mật.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (self $user): void {
+            if ($user->isDirty('email') && ! $user->isDirty('email_verified_at')) {
+                $user->email_verified_at = null;
+            }
+        });
+    }
+
+    /**
      * Kiểm tra tài khoản có đang hoạt động hay không.
      */
     public function isActive(): bool
@@ -267,11 +281,130 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Kiểm tra tài khoản đã có mật khẩu truyền thống hay chưa.
+     * Kiểm tra tài khoản có thông tin xác thực mật khẩu sử dụng được hay không.
+     *
+     * Không chấp nhận giá trị rỗng hoặc chuỗi rỗng làm mật khẩu hợp lệ.
+     */
+    public function hasUsablePasswordAuthentication(): bool
+    {
+        if ($this->password === null) {
+            return false;
+        }
+
+        $rawPassword = trim((string) $this->password);
+        if ($rawPassword === '') {
+            return false;
+        }
+
+        if (\Illuminate\Support\Facades\Hash::check('', $rawPassword)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Bí danh tương thích ngược cho `hasUsablePasswordAuthentication()`.
      */
     public function hasPassword(): bool
     {
-        return is_string($this->password) && $this->password !== '';
+        return $this->hasUsablePasswordAuthentication();
+    }
+
+    /**
+     * Kiểm tra tài khoản đã liên kết định danh Google OAuth thực tế trong `user_external_identities` hay chưa.
+     */
+    public function hasLinkedGoogleIdentity(): bool
+    {
+        if ($this->relationLoaded('externalIdentities')) {
+            return $this->externalIdentities->contains('provider', 'google');
+        }
+
+        if (! \Illuminate\Support\Facades\Schema::hasTable('user_external_identities')) {
+            return false;
+        }
+
+        return $this->externalIdentities()
+            ->where('provider', 'google')
+            ->exists();
+    }
+
+    /**
+     * Danh sách các phương thức xác thực thực tế mà tài khoản đang hỗ trợ.
+     *
+     * @return list<string>
+     */
+    public function availableAuthenticationMethods(): array
+    {
+        $methods = [];
+
+        if ($this->hasUsablePasswordAuthentication()) {
+            $methods[] = 'password';
+        }
+
+        if ($this->hasLinkedGoogleIdentity()) {
+            $methods[] = 'google';
+        }
+
+        return $methods;
+    }
+
+    /**
+     * Nhãn tiếng Việt chuẩn hóa cho các phương thức xác thực đã liên kết.
+     */
+    public function authenticationMethodsLabel(): string
+    {
+        $hasPassword = $this->hasUsablePasswordAuthentication();
+        $hasGoogle = $this->hasLinkedGoogleIdentity();
+
+        return match (true) {
+            $hasPassword && $hasGoogle => 'Mật khẩu và Google',
+            $hasGoogle => 'Google',
+            $hasPassword => 'Mật khẩu',
+            default => 'Chưa thiết lập',
+        };
+    }
+
+    /**
+     * Truy xuất phương thức đăng nhập thành công gần nhất từ `login_events` (nếu có dữ liệu tin cậy).
+     * Không bao giờ suy diễn từ danh sách nhà cung cấp đã liên kết.
+     */
+    public function lastSuccessfulLoginMethod(): ?string
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('login_events')
+            || ! \Illuminate\Support\Facades\Schema::hasColumn('login_events', 'auth_method')) {
+            return null;
+        }
+
+        if ($this->relationLoaded('loginEvents')) {
+            $latestSuccess = $this->loginEvents
+                ->where('event_type', \App\Enums\LoginEventType::LoginSuccess->value)
+                ->sortByDesc('occurred_at')
+                ->first();
+
+            $method = $latestSuccess?->auth_method;
+
+            return in_array($method, ['password', 'google'], true) ? $method : null;
+        }
+
+        $method = $this->loginEvents()
+            ->where('event_type', \App\Enums\LoginEventType::LoginSuccess->value)
+            ->latest('occurred_at')
+            ->value('auth_method');
+
+        return in_array($method, ['password', 'google'], true) ? $method : null;
+    }
+
+    /**
+     * Nhãn tiếng Việt cho phương thức đăng nhập gần nhất (hiển thị trung thực "Chưa rõ" nếu là dữ liệu cũ).
+     */
+    public function lastSuccessfulLoginMethodLabel(): string
+    {
+        return match ($this->lastSuccessfulLoginMethod()) {
+            'password' => 'Mật khẩu',
+            'google' => 'Google',
+            default => 'Chưa rõ',
+        };
     }
 
     /**

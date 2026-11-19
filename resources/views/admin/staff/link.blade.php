@@ -1,5 +1,5 @@
 {{--
-    Biểu mẫu Liên kết Tài khoản Khách hàng Hiện hữu sang Nhân sự (Stage 01B.5.1)
+    Biểu mẫu Liên kết Tài khoản Khách hàng Hiện hữu sang Nhân sự
     - Entry point: GET /quan-tri/nhan-su/lien-ket -> StaffController::createLink
     - Submit: POST /quan-tri/nhan-su/lien-ket (`admin.staff.link.store`) -> StaffController::storeLink -> StaffAdministrationService::linkExistingCustomerToStaff
     - Bảo toàn mật khẩu hiện tại, phiên đăng nhập khách hàng và `account_status` của tài khoản gốc.
@@ -7,8 +7,10 @@
 @extends('layouts.admin')
 
 @section('title', 'Liên kết Khách hàng sang Nhân sự — Book_Store')
+@section('header_title', 'Liên kết khách hàng sang nhân sự')
 
 @section('content')
+<div class="bs-ad-dashboard-canvas">
     <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
         @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
             <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
@@ -41,7 +43,7 @@
     <section class="bs-ad-panel" aria-labelledby="link-rules-heading">
         <h2 id="link-rules-heading" class="bs-ad-panel-title">Quy tắc bảo toàn tài khoản gốc</h2>
         <ul class="bs-ad-invariant-list">
-            <li>Chỉ liên kết được với tài khoản khách hàng đang hoạt động (`staff_access_status = not_applicable`, chưa có hồ sơ nhân sự).</li>
+            <li>Chỉ liên kết được với tài khoản khách hàng đang hoạt động (chưa có hồ sơ nhân sự).</li>
             <li>Mật khẩu hiện tại của khách hàng và quyền truy cập hiệu sách công khai được giữ nguyên; không tự động cấp mật khẩu tạm.</li>
             <li>Sau khi liên kết, nhân sự ở trạng thái <strong>Chờ kích hoạt</strong> và cần đề xuất được Super Admin phê duyệt trước khi truy cập khu vực nội bộ.</li>
         </ul>
@@ -192,4 +194,5 @@
             </div>
         </form>
     </section>
+</div>
 @endsection

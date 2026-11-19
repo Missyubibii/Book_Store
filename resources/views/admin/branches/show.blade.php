@@ -1,5 +1,5 @@
 {{--
-    Chi tiết & Cập nhật Chi nhánh Bán lẻ (Stage 01B.4)
+    Chi tiết & Cập nhật Chi nhánh Bán lẻ
     - Entry point: GET /quan-tri/chi-nhanh/{branch} (`admin.branches.show`)
     - Cập nhật thông tin hành chính: PATCH /quan-tri/chi-nhanh/{branch} (`admin.branches.update`)
     - Chuyển trạng thái có xác nhận: PATCH /quan-tri/chi-nhanh/{branch}/trang-thai (`admin.branches.status.update`)
@@ -8,299 +8,426 @@
 @extends('layouts.admin')
 
 @section('title', $branch->name . ' — Chi tiết Chi nhánh — Book_Store')
+@section('header_title', 'Chi tiết chi nhánh')
 
 @section('content')
-    @php
-        $isEditSubmission = old('_form') === 'edit';
-        $editStatusValue = $isEditSubmission ? old('status', $branch->status->value) : $branch->status->value;
-        $statusConfirmHasErrors = ! $isEditSubmission && ($errors->has('confirmed') || $errors->has('reason') || $errors->has('status'));
-        $nextStatus = $branch->isActive() ? \App\Enums\BranchStatus::Inactive : \App\Enums\BranchStatus::Active;
-    @endphp
+@php
+    $isEditSubmission = old('_form') === 'edit';
+    $editStatusValue = $isEditSubmission ? old('status', $branch->status->value) : $branch->status->value;
+    $statusConfirmHasErrors = ! $isEditSubmission && ($errors->has('confirmed') || $errors->has('reason') || $errors->has('status'));
+    $nextStatus = $branch->isActive() ? \App\Enums\BranchStatus::Inactive : \App\Enums\BranchStatus::Active;
+    $activeStaffAssignmentsCount = $branchAssignments->where('status', \App\Enums\BranchAssignmentStatus::Active)->count();
+@endphp
 
-    <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
-        @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
-            <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
-            <span aria-hidden="true">/</span>
-        @endif
-        <a href="{{ route('admin.branches.index') }}">Chi nhánh bán lẻ</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">{{ $branch->code }}</span>
-    </nav>
+<div class="bs-ad-dashboard-canvas">
+    {{-- ==================== 1. PAGE HEADER ==================== --}}
+    <x-admin.page-header
+        :title="$branch->name"
+        :subtitle="'Hồ sơ vận hành chi nhánh bán lẻ mã ' . $branch->code . ' (#' . $branch->id . ').'"
+    >
+        <x-slot:breadcrumb>
+            <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
+                @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
+                    <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
+                    <span aria-hidden="true">/</span>
+                @endif
+                <a href="{{ route('admin.branches.index') }}">Quản lý chi nhánh</a>
+                <span aria-hidden="true">/</span>
+                <span aria-current="page">{{ $branch->code }}</span>
+            </nav>
+        </x-slot:breadcrumb>
 
-    <div class="bs-ad-page-head">
-        <div class="bs-ad-page-head-copy">
-            <p class="bs-ad-eyebrow">Hồ sơ Chi nhánh Bán lẻ #{{ $branch->id }}</p>
-            <h1 class="bs-ad-title">{{ $branch->name }}</h1>
-            <div class="bs-ad-form-actions">
-                <span class="bs-ad-code">{{ $branch->code }}</span>
-                <span class="bs-ad-pill bs-ad-pill-neutral">{{ $branch->type->label() }}</span>
-                <span @class([
-                    'bs-ad-pill',
-                    'bs-ad-pill-active' => $branch->isActive(),
-                    'bs-ad-pill-inactive' => ! $branch->isActive(),
-                ])>
-                    {{ $branch->status->label() }}
-                </span>
-            </div>
-        </div>
+        <x-slot:actions>
+            @if ($branch->isActive())
+                <x-admin.status-badge variant="success">{{ $branch->status->label() }}</x-admin.status-badge>
+            @else
+                <x-admin.status-badge variant="danger">{{ $branch->status->label() }}</x-admin.status-badge>
+            @endif
 
-        <div class="bs-ad-page-actions">
-            @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
+            @if ($canViewGlobalAuditLogs)
                 <a href="{{ route('admin.audit-logs.index', ['branch_id' => $branch->id]) }}" class="bs-ad-btn-outline">
                     Xem tất cả lịch sử
                 </a>
             @endif
             <a href="{{ route('admin.branches.index') }}" class="bs-ad-btn-outline">Quay lại danh sách</a>
-        </div>
+        </x-slot:actions>
+    </x-admin.page-header>
+
+    {{-- ==================== 2. 4 KPI SUMMARY CARDS ==================== --}}
+    <div class="bs-ad-kpi-grid" aria-label="Thông số định danh bất biến">
+        <x-admin.kpi-card
+            label="Mã chi nhánh (Bất biến)"
+            :value="$branch->code"
+            subtext="Định danh chuẩn hóa toàn hệ thống"
+            variant="blue"
+        >
+            <x-slot:icon>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2"/>
+                    <line x1="7" y1="8" x2="17" y2="8"/>
+                    <line x1="7" y1="12" x2="13" y2="12"/>
+                </svg>
+            </x-slot:icon>
+        </x-admin.kpi-card>
+
+        <x-admin.kpi-card
+            label="Loại đơn vị (Bất biến)"
+            :value="$branch->type->label()"
+            subtext="Khóa cứng theo nghiệp vụ"
+            variant="green"
+        >
+            <x-slot:icon>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 21h18"/>
+                    <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/>
+                </svg>
+            </x-slot:icon>
+        </x-admin.kpi-card>
+
+        <x-admin.kpi-card
+            label="Nhân sự đang phân công"
+            :value="number_format($activeStaffAssignmentsCount, 0, ',', '.')"
+            :subtext="'Tổng phân công: ' . number_format($branchAssignments->count(), 0, ',', '.') . ' hồ sơ'"
+            variant="purple"
+        >
+            <x-slot:icon>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </x-slot:icon>
+        </x-admin.kpi-card>
+
+        <x-admin.kpi-card
+            label="Cập nhật gần nhất"
+            :value="format_datetime($branch->updated_at)"
+            :subtext="'Khởi tạo: ' . format_datetime($branch->created_at)"
+            variant="amber"
+        >
+            <x-slot:icon>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+            </x-slot:icon>
+        </x-admin.kpi-card>
     </div>
 
-    <section class="bs-ad-identity-grid" aria-label="Thông số định danh bất biến">
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Mã chi nhánh (Bất biến)</p>
-            <p class="bs-ad-stat-value">{{ $branch->code }}</p>
-        </article>
-
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Loại đơn vị (Bất biến)</p>
-            <p class="bs-ad-stat-value">{{ $branch->type->label() }}</p>
-        </article>
-
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Khởi tạo lúc</p>
-            <p class="bs-ad-stat-value">{{ format_datetime($branch->created_at) }}</p>
-        </article>
-
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Cập nhật gần nhất</p>
-            <p class="bs-ad-stat-value">{{ format_datetime($branch->updated_at) }}</p>
-        </article>
-    </section>
-
-    <section
-        class="bs-ad-panel"
-        aria-labelledby="edit-branch-heading"
-        @if ($canUpdateBranch)
-            data-form-disclosure
-            data-initial-open="{{ $isEditSubmission ? 'true' : 'false' }}"
-        @endif
+    {{-- ==================== 3. BRANCH INFORMATION & PROGRESSIVE EDIT FORM ==================== --}}
+    <x-admin.collapsible-section
+        title="Thông tin hành chính chi nhánh"
+        :subtitle="'Có thể cập nhật tên gọi, trạng thái hoạt động, số điện thoại và địa chỉ. Mã chi nhánh (' . $branch->code . ') và loại đơn vị là bất biến sau khi tạo.'"
+        heading-id="edit-branch-heading"
+        panel-id="branch-edit-form-panel"
+        :initial-open="$isEditSubmission"
+        :can-toggle="$canUpdateBranch"
+        open-label="Chỉnh sửa thông tin"
+        close-label="Đóng chỉnh sửa"
     >
-        <div class="bs-ad-panel-head">
-            <div>
-                <h2 id="edit-branch-heading" class="bs-ad-panel-title">Thông tin hành chính chi nhánh</h2>
-                <p class="bs-ad-panel-subtitle">
-                    Có thể cập nhật tên gọi, trạng thái hoạt động, số điện thoại và địa chỉ. Mã chi nhánh ({{ $branch->code }}) và loại đơn vị là bất biến sau khi tạo.
-                </p>
-            </div>
-            @if ($canUpdateBranch)
-                <button
-                    type="button"
-                    class="bs-ad-btn-outline"
-                    data-disclosure-toggle
-                    data-label-open="Chỉnh sửa thông tin"
-                    data-label-close="Đóng chỉnh sửa"
-                    aria-expanded="{{ $isEditSubmission ? 'true' : 'false' }}"
-                    aria-controls="branch-edit-form-panel"
+        <x-slot:summary>
+            <dl class="bs-ad-info-list">
+                <x-admin.information-row label="Tên chi nhánh" :value="$branch->name" />
+                <x-admin.information-row label="Mã chi nhánh">
+                    <span class="bs-ad-branch-code-tag">{{ $branch->code }}</span>
+                </x-admin.information-row>
+                <x-admin.information-row label="Loại đơn vị" :value="$branch->type->label()" />
+                <x-admin.information-row label="Trạng thái vận hành">
+                    @if ($branch->isActive())
+                        <x-admin.status-badge variant="success">{{ $branch->status->label() }}</x-admin.status-badge>
+                    @else
+                        <x-admin.status-badge variant="danger">{{ $branch->status->label() }}</x-admin.status-badge>
+                    @endif
+                </x-admin.information-row>
+                <x-admin.information-row label="Số điện thoại" :value="$branch->phone ?: 'Chưa cập nhật'" />
+                <x-admin.information-row label="Địa chỉ" :value="$branch->address ?: 'Chưa cập nhật địa chỉ'" />
+            </dl>
+        </x-slot:summary>
+
+        <form
+            method="POST"
+            action="{{ route('admin.branches.update', $branch) }}"
+            data-admin-form
+            novalidate
+        >
+            @csrf
+            @method('PATCH')
+            <input type="hidden" name="_form" value="edit">
+
+            <div class="bs-ad-form-grid">
+                <x-admin.form-field
+                    label="Mã chi nhánh"
+                    :error="$isEditSubmission ? $errors->first('code') : null"
                 >
-                    <span data-disclosure-label>{{ $isEditSubmission ? 'Đóng chỉnh sửa' : 'Chỉnh sửa thông tin' }}</span>
-                </button>
-            @endif
-        </div>
+                    <div class="bs-ad-readonly-box">
+                        <span class="bs-ad-branch-code-tag">{{ $branch->code }}</span>
+                        <span class="bs-ad-help">Định danh bất biến</span>
+                    </div>
+                </x-admin.form-field>
 
-        <dl class="bs-ad-meta-list @if($canUpdateBranch && $isEditSubmission) bs-hidden @endif" @if($canUpdateBranch) data-disclosure-summary @endif>
-            <div class="bs-ad-meta-row">
-                <dt class="bs-ad-meta-label">Tên chi nhánh:</dt>
-                <dd class="bs-ad-meta-value">{{ $branch->name }}</dd>
-            </div>
-            <div class="bs-ad-meta-row">
-                <dt class="bs-ad-meta-label">Số điện thoại:</dt>
-                <dd class="bs-ad-meta-value">{{ $branch->phone ?: 'Chưa cập nhật' }}</dd>
-            </div>
-            <div class="bs-ad-meta-row">
-                <dt class="bs-ad-meta-label">Địa chỉ:</dt>
-                <dd class="bs-ad-meta-value">{{ $branch->address ?: 'Chưa cập nhật địa chỉ' }}</dd>
-            </div>
-        </dl>
-
-        @if ($canUpdateBranch)
-            <div
-                id="branch-edit-form-panel"
-                data-disclosure-panel
-                aria-hidden="{{ $isEditSubmission ? 'false' : 'true' }}"
-                @class(['bs-hidden' => ! $isEditSubmission])
-            >
-                <form
-                    method="POST"
-                    action="{{ route('admin.branches.update', $branch) }}"
-                    data-admin-form
-                    x-data="adminBranchForm"
-                    @submit="handleSubmit"
-                    novalidate
+                <x-admin.form-field
+                    label="Loại đơn vị"
+                    :error="$isEditSubmission ? $errors->first('type') : null"
                 >
-                @csrf
-                @method('PATCH')
-                <input type="hidden" name="_form" value="edit">
-
-                <div class="bs-ad-form-grid">
-                    <div class="bs-ad-field">
-                        <span class="bs-ad-label">Mã chi nhánh</span>
-                        <div class="bs-ad-readonly-box">
-                            <span class="bs-ad-code">{{ $branch->code }}</span>
-                            <span class="bs-ad-help">Định danh bất biến</span>
-                        </div>
+                    <div class="bs-ad-readonly-box">
+                        <span>{{ $branch->type->label() }}</span>
+                        <span class="bs-ad-help">Không thể chuyển đổi sang Kho trung tâm</span>
                     </div>
+                </x-admin.form-field>
 
-                    <div class="bs-ad-field">
-                        <span class="bs-ad-label">Loại đơn vị</span>
-                        <div class="bs-ad-readonly-box">
-                            <span>{{ $branch->type->label() }}</span>
-                            <span class="bs-ad-help">Không thể chuyển đổi sang Kho trung tâm</span>
-                        </div>
-                    </div>
-
-                    <div class="bs-ad-field">
-                        <label for="edit-branch-name" class="bs-ad-label">Tên chi nhánh *</label>
-                        <input
-                            id="edit-branch-name"
-                            type="text"
-                            name="name"
-                            value="{{ $isEditSubmission ? old('name', $branch->name) : $branch->name }}"
-                            required
-                            maxlength="150"
-                            class="bs-ad-input @if($isEditSubmission && $errors->has('name')) bs-ad-input-error @endif"
-                        >
-                        @if ($isEditSubmission)
-                            @error('name')
-                                <p class="bs-ad-field-error">{{ $message }}</p>
-                            @enderror
-                        @endif
-                    </div>
-
-                    <div class="bs-ad-field">
-                        <label for="edit-branch-status" class="bs-ad-label">Trạng thái vận hành *</label>
-                        <select
-                            id="edit-branch-status"
-                            name="status"
-                            class="bs-ad-select @if($isEditSubmission && $errors->has('status')) bs-ad-input-error @endif"
-                        >
-                            @foreach ($statusOptions as $option)
-                                <option value="{{ $option->value }}" @selected($editStatusValue === $option->value)>
-                                    {{ $option->label() }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @if ($isEditSubmission)
-                            @error('status')
-                                <p class="bs-ad-field-error">{{ $message }}</p>
-                            @enderror
-                        @endif
-                    </div>
-
-                    <div class="bs-ad-field">
-                        <label for="edit-branch-phone" class="bs-ad-label">Số điện thoại liên hệ</label>
-                        <input
-                            id="edit-branch-phone"
-                            type="tel"
-                            name="phone"
-                            value="{{ $isEditSubmission ? old('phone', $branch->phone) : $branch->phone }}"
-                            maxlength="30"
-                            placeholder="Chưa cập nhật"
-                            class="bs-ad-input @if($isEditSubmission && $errors->has('phone')) bs-ad-input-error @endif"
-                        >
-                        @if ($isEditSubmission)
-                            @error('phone')
-                                <p class="bs-ad-field-error">{{ $message }}</p>
-                            @enderror
-                        @endif
-                    </div>
-
-                    <div class="bs-ad-field bs-ad-field-full">
-                        <label for="edit-branch-address" class="bs-ad-label">Địa chỉ chi nhánh</label>
-                        <textarea
-                            id="edit-branch-address"
-                            name="address"
-                            rows="3"
-                            maxlength="500"
-                            placeholder="Chưa cập nhật địa chỉ"
-                            class="bs-ad-textarea @if($isEditSubmission && $errors->has('address')) bs-ad-input-error @endif"
-                        >{{ $isEditSubmission ? old('address', $branch->address) : $branch->address }}</textarea>
-                        @if ($isEditSubmission)
-                            @error('address')
-                                <p class="bs-ad-field-error">{{ $message }}</p>
-                            @enderror
-                        @endif
-                    </div>
-                </div>
-
-                <div class="bs-ad-form-actions">
-                    <button
-                        type="submit"
-                        class="bs-ad-btn-primary"
-                        :disabled="submitting"
-                        :aria-busy="submitting ? 'true' : 'false'"
+                <x-admin.form-field
+                    label="Tên chi nhánh"
+                    for="edit-branch-name"
+                    :required="true"
+                    :error="$isEditSubmission ? $errors->first('name') : null"
+                >
+                    <input
+                        id="edit-branch-name"
+                        type="text"
+                        name="name"
+                        value="{{ $isEditSubmission ? old('name', $branch->name) : $branch->name }}"
+                        required
+                        maxlength="150"
+                        class="bs-ad-input @if($isEditSubmission && $errors->has('name')) bs-ad-input-error @endif"
                     >
-                        <span x-text="submitting ? 'Đang cập nhật...' : 'Cập nhật thông tin chi nhánh'">Cập nhật thông tin chi nhánh</span>
-                    </button>
-                    <button type="button" class="bs-ad-btn-outline" data-disclosure-close>
-                        Đóng chỉnh sửa
-                    </button>
-                </div>
-            </form>
+                </x-admin.form-field>
+
+                <x-admin.form-field
+                    label="Trạng thái vận hành"
+                    for="edit-branch-status"
+                    :required="true"
+                    :error="$isEditSubmission ? $errors->first('status') : null"
+                >
+                    <select
+                        id="edit-branch-status"
+                        name="status"
+                        class="bs-ad-select @if($isEditSubmission && $errors->has('status')) bs-ad-input-error @endif"
+                    >
+                        @foreach ($statusOptions as $option)
+                            <option value="{{ $option->value }}" @selected($editStatusValue === $option->value)>
+                                {{ $option->label() }}
+                            </option>
+                        @endforeach
+                    </select>
+                </x-admin.form-field>
+
+                <x-admin.form-field
+                    label="Số điện thoại liên hệ"
+                    for="edit-branch-phone"
+                    :error="$isEditSubmission ? $errors->first('phone') : null"
+                >
+                    <input
+                        id="edit-branch-phone"
+                        type="tel"
+                        name="phone"
+                        value="{{ $isEditSubmission ? old('phone', $branch->phone) : $branch->phone }}"
+                        maxlength="30"
+                        placeholder="Chưa cập nhật"
+                        class="bs-ad-input @if($isEditSubmission && $errors->has('phone')) bs-ad-input-error @endif"
+                    >
+                </x-admin.form-field>
+
+                <x-admin.form-field
+                    label="Địa chỉ chi nhánh"
+                    for="edit-branch-address"
+                    :full="true"
+                    :error="$isEditSubmission ? $errors->first('address') : null"
+                >
+                    <textarea
+                        id="edit-branch-address"
+                        name="address"
+                        rows="3"
+                        maxlength="500"
+                        placeholder="Chưa cập nhật địa chỉ"
+                        class="bs-ad-textarea @if($isEditSubmission && $errors->has('address')) bs-ad-input-error @endif"
+                    >{{ $isEditSubmission ? old('address', $branch->address) : $branch->address }}</textarea>
+                </x-admin.form-field>
+            </div>
+
+            <x-admin.form-actions>
+                <button type="submit" class="bs-ad-btn-primary">
+                    <span>Cập nhật thông tin chi nhánh</span>
+                </button>
+                <button type="button" class="bs-ad-btn-outline" data-disclosure-close>
+                    Đóng chỉnh sửa
+                </button>
+            </x-admin.form-actions>
+        </form>
+    </x-admin.collapsible-section>
+
+    {{-- ==================== 4. STAFF ASSIGNMENTS SECTION ==================== --}}
+    <x-admin.content-card title="Nhân sự phân công tại chi nhánh" heading-id="branch-staff-assignments-heading">
+        <x-slot:headerActions>
+            <span class="bs-ad-muted-meta">Đang hiệu lực: {{ number_format($activeStaffAssignmentsCount, 0, ',', '.') }} nhân sự</span>
+            @if ($canViewStaffDirectory)
+                <a href="{{ route('admin.staff.index', ['branch_id' => $branch->id]) }}" class="bs-ad-btn-outline bs-ad-btn-sm">
+                    Quản lý nhân sự
+                </a>
+            @endif
+        </x-slot:headerActions>
+
+        @if ($branchAssignments->isEmpty())
+            <x-admin.empty-state
+                description="Chưa có nhân sự nào được phân công vào chi nhánh này."
+            >
+                @if ($canViewStaffDirectory)
+                    <a href="{{ route('admin.staff.index') }}" class="bs-ad-btn-outline">Đi tới danh bạ nhân sự</a>
+                @endif
+            </x-admin.empty-state>
+        @else
+            <x-admin.bounded-scroll max-height="md" label="Danh sách nhân sự phân công tại chi nhánh">
+                <x-admin.data-table>
+                <x-slot:head>
+                    <tr>
+                        <th>NHÂN SỰ</th>
+                        <th>VAI TRÒ TẠI CHI NHÁNH</th>
+                        <th>TRẠNG THÁI PHÂN CÔNG</th>
+                        <th>NGÀY PHÂN CÔNG</th>
+                        @if ($canViewStaffDirectory)
+                            <th class="bs-ad-th-action">THAO TÁC</th>
+                        @endif
+                    </tr>
+                </x-slot:head>
+
+                @foreach ($branchAssignments as $assignment)
+                    @php
+                        $staffUser = $assignment->user;
+                        $userRoles = $staffUser ? ($roleAssignmentsByUser->get($staffUser->id) ?? collect()) : collect();
+                    @endphp
+                    <tr>
+                        <td>
+                            <div class="bs-ad-branch-cell">
+                                <span class="bs-ad-user-name">{{ $staffUser?->name ?? 'Tài khoản không xác định' }}</span>
+                                <span class="bs-ad-user-email">{{ $staffUser?->email ?? '' }}</span>
+                                @if ($staffUser?->staffProfile?->employee_code)
+                                    <span class="bs-ad-branch-code-tag">{{ $staffUser->staffProfile->employee_code }}</span>
+                                @endif
+                            </div>
+                        </td>
+                        <td>
+                            @if ($userRoles->isEmpty())
+                                <span class="bs-ad-muted-meta">Chưa gán vai trò</span>
+                            @else
+                                <div class="bs-ad-login-badges">
+                                    @foreach ($userRoles as $roleAssignment)
+                                        <x-admin.status-badge variant="info">{{ $roleAssignment->role?->name ?? $roleAssignment->role?->code }}</x-admin.status-badge>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($assignment->status === \App\Enums\BranchAssignmentStatus::Active)
+                                <x-admin.status-badge variant="success">{{ $assignment->status->label() }}</x-admin.status-badge>
+                            @else
+                                <x-admin.status-badge variant="neutral">{{ $assignment->status->label() }}</x-admin.status-badge>
+                            @endif
+                            @if ($assignment->is_primary)
+                                <x-admin.status-badge variant="info">Chi nhánh chính</x-admin.status-badge>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="bs-ad-date-cell">{{ format_datetime($assignment->assigned_at ?? $assignment->created_at) }}</span>
+                        </td>
+                        @if ($canViewStaffDirectory)
+                            <td class="bs-ad-td-action">
+                                @if ($staffUser)
+                                    <a href="{{ route('admin.staff.show', $staffUser) }}" class="bs-ad-btn-detail">
+                                        Hồ sơ nhân sự
+                                    </a>
+                                @endif
+                            </td>
+                        @endif
+                    </tr>
+                @endforeach
+                </x-admin.data-table>
+            </x-admin.bounded-scroll>
+
+            <div class="bs-ad-mobile-cards">
+                @foreach ($branchAssignments as $assignment)
+                    @php
+                        $staffUser = $assignment->user;
+                        $userRoles = $staffUser ? ($roleAssignmentsByUser->get($staffUser->id) ?? collect()) : collect();
+                    @endphp
+                    <article class="bs-ad-mobile-card">
+                        <div class="bs-ad-mobile-card-head">
+                            <div>
+                                <h3 class="bs-ad-user-name">{{ $staffUser?->name ?? 'Tài khoản không xác định' }}</h3>
+                                <p class="bs-ad-user-email">{{ $staffUser?->email ?? '' }}</p>
+                            </div>
+                            @if ($assignment->status === \App\Enums\BranchAssignmentStatus::Active)
+                                <x-admin.status-badge variant="success">{{ $assignment->status->label() }}</x-admin.status-badge>
+                            @else
+                                <x-admin.status-badge variant="neutral">{{ $assignment->status->label() }}</x-admin.status-badge>
+                            @endif
+                        </div>
+
+                        <dl class="bs-ad-mobile-card-meta">
+                            <div>
+                                <dt>Vai trò tại chi nhánh</dt>
+                                <dd>
+                                    @if ($userRoles->isEmpty())
+                                        Chưa gán vai trò
+                                    @else
+                                        {{ $userRoles->map(fn ($r) => $r->role?->name ?? $r->role?->code)->implode(', ') }}
+                                    @endif
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>Ngày phân công</dt>
+                                <dd>{{ format_datetime($assignment->assigned_at ?? $assignment->created_at) }}</dd>
+                            </div>
+                        </dl>
+
+                        @if ($canViewStaffDirectory && $staffUser)
+                            <div class="bs-ad-mobile-card-actions">
+                                <a href="{{ route('admin.staff.show', $staffUser) }}" class="bs-ad-btn-detail bs-ad-btn-full">
+                                    Hồ sơ nhân sự
+                                </a>
+                            </div>
+                        @endif
+                    </article>
+                @endforeach
             </div>
         @endif
-    </section>
+    </x-admin.content-card>
 
+    {{-- ==================== 5. BRANCH STATUS MANAGEMENT (WITH CONFIRMATION) ==================== --}}
     @if ($canUpdateBranch)
-        <section
-            class="bs-ad-panel"
-            aria-labelledby="status-control-heading"
-            data-confirm-disclosure
-            data-initial-open="{{ $statusConfirmHasErrors ? 'true' : 'false' }}"
-            x-data="branchStatusConfirm(@json($statusConfirmHasErrors))"
+        <x-admin.confirmation-panel
+            title="Kiểm soát trạng thái hoạt động chi nhánh"
+            :subtitle="$branch->isActive()
+                ? 'Chi nhánh hiện đang hoạt động. Việc chuyển sang ngừng hoạt động giúp khóa tạm thời điểm bán mà vẫn giữ toàn bộ lịch sử nghiệp vụ và kế toán.'
+                : 'Chi nhánh hiện đang ngừng hoạt động. Bạn có thể kích hoạt lại chi nhánh khi điểm bán sẵn sàng vận hành trở lại.'"
+            heading-id="status-control-heading"
+            :initial-open="$statusConfirmHasErrors"
         >
-            <h2 id="status-control-heading" class="bs-ad-panel-title">Kiểm soát trạng thái hoạt động chi nhánh</h2>
-            <p class="bs-ad-panel-subtitle">
-                @if ($branch->isActive())
-                    Chi nhánh hiện đang hoạt động. Việc chuyển sang ngừng hoạt động giúp khóa tạm thời điểm bán mà vẫn giữ toàn bộ lịch sử nghiệp vụ và kế toán.
-                @else
-                    Chi nhánh hiện đang ngừng hoạt động. Bạn có thể kích hoạt lại chi nhánh khi điểm bán sẵn sàng vận hành trở lại.
-                @endif
-            </p>
-
-            <div
-                @class(['bs-ad-form-actions', 'bs-hidden' => $statusConfirmHasErrors])
-                :class="{ 'bs-hidden': confirmOpen }"
-                data-confirm-trigger-wrap
-                x-show="!confirmOpen"
-            >
+            <x-slot:trigger>
                 <button
                     type="button"
                     data-confirm-open
                     aria-expanded="{{ $statusConfirmHasErrors ? 'true' : 'false' }}"
                     aria-controls="branch-status-confirm-panel"
-                    @click="openConfirm"
                     class="{{ $branch->isActive() ? 'bs-ad-btn-danger-outline' : 'bs-ad-btn-primary' }}"
                 >
                     {{ $branch->isActive() ? 'Ngừng hoạt động chi nhánh' : 'Kích hoạt lại chi nhánh' }}
                 </button>
-            </div>
+            </x-slot:trigger>
 
             <form
                 id="branch-status-confirm-panel"
                 method="POST"
                 action="{{ route('admin.branches.status.update', $branch) }}"
                 @class(['bs-ad-confirm-box', 'bs-hidden' => ! $statusConfirmHasErrors])
-                :class="{ 'bs-hidden': !confirmOpen }"
                 @if (! $statusConfirmHasErrors) x-cloak @endif
                 data-confirm-panel
                 aria-hidden="{{ $statusConfirmHasErrors ? 'false' : 'true' }}"
-                x-show="confirmOpen"
-                @submit="handleSubmit"
             >
                 @csrf
                 @method('PATCH')
                 <input type="hidden" name="status" value="{{ $nextStatus->value }}">
 
-                <p class="bs-ad-panel-title">
+                <p class="bs-ad-confirm-heading">
                     @if ($branch->isActive())
                         Xác nhận ngừng hoạt động chi nhánh {{ $branch->name }} ({{ $branch->code }})
                     @else
@@ -314,7 +441,6 @@
                         name="confirmed"
                         value="1"
                         data-confirm-checkbox
-                        x-model="confirmedChecked"
                         @checked(! $isEditSubmission && old('confirmed'))
                     >
                     <span>
@@ -325,36 +451,32 @@
 
                 @if (! $isEditSubmission)
                     @error('confirmed')
-                        <p class="bs-ad-field-error">{{ $message }}</p>
+                        <p class="bs-ad-field-error" role="alert">{{ $message }}</p>
                     @enderror
                 @endif
 
-                <div class="bs-ad-field">
-                    <label for="status-change-reason" class="bs-ad-label">Lý do kiểm toán (tùy chọn)</label>
+                <x-admin.form-field
+                    label="Lý do kiểm toán (tùy chọn)"
+                    for="status-change-reason"
+                    :error="! $isEditSubmission ? $errors->first('reason') : null"
+                >
                     <input
                         id="status-change-reason"
                         type="text"
                         name="reason"
                         data-confirm-reset-input
-                        x-ref="reasonInput"
                         value="{{ ! $isEditSubmission ? old('reason') : '' }}"
                         maxlength="255"
                         placeholder="Ví dụ: Tạm ngưng sửa chữa mặt bằng hoặc khai trương lại"
                         class="bs-ad-input @if(! $isEditSubmission && $errors->has('reason')) bs-ad-input-error @endif"
                     >
-                    @if (! $isEditSubmission)
-                        @error('reason')
-                            <p class="bs-ad-field-error">{{ $message }}</p>
-                        @enderror
-                    @endif
-                </div>
+                </x-admin.form-field>
 
-                <div class="bs-ad-form-actions">
+                <x-admin.form-actions>
                     <button
                         type="submit"
                         data-confirm-submit
                         class="{{ $branch->isActive() ? 'bs-ad-btn-danger-outline' : 'bs-ad-btn-primary' }}"
-                        :disabled="submitting || !confirmedChecked"
                         disabled
                     >
                         {{ $branch->isActive() ? 'Xác nhận ngừng hoạt động' : 'Xác nhận kích hoạt lại' }}
@@ -364,31 +486,30 @@
                         type="button"
                         class="bs-ad-btn-outline"
                         data-confirm-cancel
-                        @click="closeConfirm(); if ($refs.reasonInput) { $refs.reasonInput.value = ''; }"
                     >
                         Hủy thao tác
                     </button>
-                </div>
+                </x-admin.form-actions>
             </form>
-        </section>
+        </x-admin.confirmation-panel>
     @endif
 
-    <section class="bs-ad-panel" aria-labelledby="branch-audit-history-heading">
-        <div class="bs-ad-subcard-head">
-            <div>
-                <h2 id="branch-audit-history-heading" class="bs-ad-panel-title">Nhật ký hoạt động gần đây</h2>
-                <p class="bs-ad-panel-subtitle">Lịch sử thay đổi thông tin và trạng thái hoạt động của chi nhánh {{ $branch->name }}.</p>
-            </div>
-
-            @if ($canViewGlobalAuditLogs)
+    {{-- ==================== 6. RECENT BRANCH AUDIT ACTIVITY ==================== --}}
+    <x-admin.detail-section
+        title="Nhật ký hoạt động gần đây"
+        :subtitle="'Lịch sử thay đổi thông tin và trạng thái hoạt động của chi nhánh ' . $branch->name . '.'"
+        heading-id="branch-audit-history-heading"
+    >
+        @if ($canViewGlobalAuditLogs)
+            <x-slot:headerActions>
                 <a
                     href="{{ route('admin.audit-logs.index', ['branch_id' => $branch->id]) }}"
-                    class="bs-ad-btn-outline"
+                    class="bs-ad-btn-outline bs-ad-btn-sm"
                 >
                     Xem tất cả lịch sử
                 </a>
-            @endif
-        </div>
+            </x-slot:headerActions>
+        @endif
 
         <div class="bs-ad-smart-scroll-wrap"
              data-smart-scroll
@@ -407,8 +528,7 @@
                 @else
                     <div class="divide-y divide-gray-100" data-smart-scroll-items>
                         @foreach ($recentAudits as $audit)
-                            <article class="bs-ad-audit-item"
-                                     data-item-id="{{ $audit->id }}">
+                            <article class="bs-ad-audit-item" data-item-id="{{ $audit->id }}">
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="min-w-0 flex-1">
                                         <div class="flex flex-wrap items-center gap-1.5">
@@ -464,14 +584,8 @@
                 </button>
             </div>
         </div>
-    </section>
-
-    <section class="bs-ad-panel bs-ad-panel-surface" aria-label="Phạm vi giai đoạn hiện tại">
-        <h2 class="bs-ad-panel-title">Phạm vi phân hệ liên quan</h2>
-        <p class="bs-ad-panel-subtitle">
-            Phân công nhân sự chi nhánh, quản trị tồn kho FIFO và điều phối nhập/xuất hàng sẽ được mở ở các giai đoạn tiếp theo sau khi hoàn tất cấu trúc chi nhánh bán lẻ.
-        </p>
-    </section>
+    </x-admin.detail-section>
 
     @include('admin.audit-logs.partials.drawer')
+</div>
 @endsection

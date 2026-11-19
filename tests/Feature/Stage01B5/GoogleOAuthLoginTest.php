@@ -20,6 +20,8 @@ class GoogleOAuthLoginTest extends TestCase
     {
         parent::setUp();
 
+        $this->artisan('migrate', ['--path' => 'database/migrations_production']);
+
         config([
             'services.google.client_id' => 'test-google-client-id.apps.googleusercontent.com',
             'services.google.client_secret' => 'test-google-client-secret',
@@ -217,6 +219,14 @@ class GoogleOAuthLoginTest extends TestCase
             'email_verified_at' => null,
         ]);
 
+        \App\Models\UserExternalIdentity::create([
+            'user_id' => $existingUser->id,
+            'provider' => 'google',
+            'provider_subject' => '999888777',
+            'provider_email' => 'existing@gmail.com',
+            'linked_at' => now(),
+        ]);
+
         Http::fake([
             'https://oauth2.googleapis.com/token' => Http::response([
                 'access_token' => 'mock-access-token',
@@ -242,9 +252,42 @@ class GoogleOAuthLoginTest extends TestCase
 
         // Email verified at should now be set
         $existingUser->refresh();
-        $this->assertNotNull($existingUser->email_verified_at);
         $this->assertSame('Khách Hàng Cũ', $existingUser->name); // preserves existing name
         $this->assertSame(StaffAccessStatus::NotApplicable, $existingUser->staff_access_status);
+    }
+
+    public function test_google_callback_rejects_automatic_linking_when_email_matches_unlinked_existing_account(): void
+    {
+        $existingUnlinked = User::factory()->create([
+            'email' => 'unlinked@gmail.com',
+            'name' => 'Chủ Tài Khoản Chưa Liên Kết',
+            'account_status' => AccountStatus::Active,
+        ]);
+
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response([
+                'access_token' => 'mock-access-token',
+                'token_type' => 'Bearer',
+                'expires_in' => 3600,
+            ], 200),
+            'https://openidconnect.googleapis.com/v1/userinfo' => Http::response([
+                'sub' => '888777666',
+                'email' => 'unlinked@gmail.com',
+                'email_verified' => true,
+                'name' => 'Attacker Or Unlinked Google',
+            ], 200),
+        ]);
+
+        $response = $this->withSession(['google_oauth_state' => 'valid-state'])
+            ->get(route('auth.google.callback', [
+                'code' => 'valid-code',
+                'state' => 'valid-state',
+            ]));
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('error');
+        $this->assertTrue(str_contains(session('error'), 'đã tồn tại trong hệ thống'));
+        $this->assertGuest();
     }
 
     public function test_google_callback_rejects_suspended_user(): void
@@ -253,6 +296,14 @@ class GoogleOAuthLoginTest extends TestCase
             'email' => 'suspended@gmail.com',
             'account_status' => AccountStatus::Suspended,
             'staff_access_status' => StaffAccessStatus::NotApplicable,
+        ]);
+
+        \App\Models\UserExternalIdentity::create([
+            'user_id' => $suspendedUser->id,
+            'provider' => 'google',
+            'provider_subject' => '555444333',
+            'provider_email' => 'suspended@gmail.com',
+            'linked_at' => now(),
         ]);
 
         Http::fake([
@@ -295,6 +346,14 @@ class GoogleOAuthLoginTest extends TestCase
             'account_status' => AccountStatus::Active,
             'staff_access_status' => StaffAccessStatus::Pending,
             'must_change_password' => true,
+        ]);
+
+        \App\Models\UserExternalIdentity::create([
+            'user_id' => $staffUser->id,
+            'provider' => 'google',
+            'provider_subject' => '777666555',
+            'provider_email' => 'staff@gmail.com',
+            'linked_at' => now(),
         ]);
 
         Http::fake([

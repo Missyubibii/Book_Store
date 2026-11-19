@@ -31,19 +31,28 @@ class GoogleAuthController extends Controller
      */
     public function redirect(GoogleOAuthService $service): RedirectResponse
     {
+        $fallback = Auth::check() ? route('account.security') : route('login');
+
         if (! (bool) config('services.google.enabled', false)) {
             return redirect()
-                ->route('login')
+                ->to($fallback)
                 ->with('warning', 'Tính năng đăng nhập bằng Google hiện chưa được kích hoạt trên hệ thống.');
         }
 
         try {
+            if (Auth::check() && ! session()->has('google_oauth_intent')) {
+                session([
+                    'google_oauth_intent' => 'link',
+                    'google_oauth_user_id' => Auth::id(),
+                ]);
+            }
+
             $authUrl = $service->generateAuthorizationUrl();
 
             return redirect()->away($authUrl);
         } catch (Throwable $exception) {
             return redirect()
-                ->route('login')
+                ->to($fallback)
                 ->with('error', 'Không thể khởi tạo phiên xác thực Google. Vui lòng kiểm tra lại cấu hình hệ thống.');
         }
     }
@@ -125,10 +134,6 @@ class GoogleAuthController extends Controller
 
             return redirect($targetRoute)
                 ->with('error', 'Có lỗi xảy ra trong quá trình xác thực với Google. Vui lòng thử lại sau.');
-        }
-            return redirect()
-                ->route('login')
-                ->with('error', 'Có lỗi xảy ra trong quá trình xác thực với Google. Vui lòng thử lại.');
         }
     }
 }

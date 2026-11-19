@@ -1,5 +1,5 @@
 {{--
-    Hàng đợi Phê duyệt Đề xuất Kích hoạt Nhân sự (Stage 01B.5.1)
+    Hàng đợi Phê duyệt Đề xuất Kích hoạt Nhân sự
     - Entry point: GET /quan-tri/nhan-su/phe-duyet -> StaffApprovalController::index
     - Approve: POST /quan-tri/nhan-su/phe-duyet/{proposal}/duyet -> StaffApprovalController::approve
     - Reject: POST /quan-tri/nhan-su/phe-duyet/{proposal}/tu-choi -> StaffApprovalController::reject
@@ -8,8 +8,10 @@
 @extends('layouts.admin')
 
 @section('title', 'Phê duyệt Kích hoạt Nhân sự — Book_Store')
+@section('header_title', 'Phê duyệt nhân sự')
 
 @section('content')
+<div class="bs-ad-dashboard-canvas">
     <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
         @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
             <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
@@ -480,4 +482,5 @@
             </div>
         @endif
     </section>
+</div>
 @endsection

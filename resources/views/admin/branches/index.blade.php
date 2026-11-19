@@ -1,194 +1,252 @@
 {{--
-    Danh sách Quản trị Chi nhánh Bán lẻ (Stage 01B.4)
+    Danh sách Quản trị Chi nhánh Bán lẻ (Stage UI-02.1)
     - Entry point: GET /quan-tri/chi-nhanh (`admin.branches.index`) -> BranchController::index
-    - Hiển thị danh sách chi nhánh bán lẻ (`BranchType::RetailBranch`), tìm kiếm, lọc trạng thái và lối vào tạo mới.
-    - Kho trung tâm (`CENTRAL_WH`) không nằm chung danh sách chỉnh sửa mà xem riêng ở chế độ chỉ đọc.
+    - Sử dụng hệ thống component tái sử dụng Liquid White Admin Design System.
+    - Kho trung tâm (`CENTRAL_WH`) tách biệt hoàn toàn khỏi danh sách chi nhánh bán lẻ.
 --}}
 @extends('layouts.admin')
 
-@section('title', 'Quản lý Chi nhánh Bán lẻ — Book_Store')
+@section('title', 'Quản lý chi nhánh — Book_Store')
+@section('header_title', 'Quản lý chi nhánh')
 
 @section('content')
-    <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
-        @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
-            <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
-            <span aria-hidden="true">/</span>
-        @endif
-        <span aria-current="page">Chi nhánh bán lẻ</span>
-    </nav>
+<div class="bs-ad-dashboard-canvas">
+    <span class="sr-only">Quản lý Chi nhánh Bán lẻ</span>
 
-    <div class="bs-ad-page-head">
-        <div class="bs-ad-page-head-copy">
-            <p class="bs-ad-eyebrow">Quản trị Điểm bán &amp; Cấu trúc Mạng lưới</p>
-            <h1 class="bs-ad-title">Quản lý Chi nhánh Bán lẻ</h1>
-            <p class="bs-ad-subtitle">
-                Khởi tạo, tra cứu, cập nhật thông tin liên hệ và kiểm soát trạng thái vận hành của từng chi nhánh bán lẻ Book_Store.
-            </p>
-        </div>
+    {{-- ==================== 1. PAGE HEADER ==================== --}}
+    <x-admin.page-header
+        title="Quản lý chi nhánh"
+        subtitle="Quản lý thông tin, trạng thái và nhân sự tại các chi nhánh của hệ thống."
+    >
+        <x-slot:breadcrumb>
+            <nav class="bs-ad-breadcrumb" aria-label="Đường dẫn điều hướng">
+                @if (auth()->user() && app(\App\Services\Authorization\AuthorizationService::class)->isEffectiveSuperAdmin(auth()->user()))
+                    <a href="{{ route('admin.dashboard') }}">Tổng quan quản trị</a>
+                    <span aria-hidden="true">/</span>
+                @endif
+                <span aria-current="page">Quản lý chi nhánh</span>
+            </nav>
+        </x-slot:breadcrumb>
 
-        <div class="bs-ad-page-actions">
+        <x-slot:actions>
             <a href="{{ route('admin.central-warehouse.show') }}" class="bs-ad-btn-outline">
                 Kho trung tâm ({{ $centralWarehouse?->code ?? 'CENTRAL_WH' }})
             </a>
 
             @if ($canCreateBranch)
                 <a href="{{ route('admin.branches.create') }}" class="bs-ad-btn-primary">
-                    Tạo chi nhánh bán lẻ
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Thêm chi nhánh</span>
                 </a>
             @endif
-        </div>
+        </x-slot:actions>
+    </x-admin.page-header>
+
+    {{-- ==================== 2. 4 KPI SUMMARY CARDS ==================== --}}
+    <div class="bs-ad-kpi-grid" aria-label="Thống kê chi nhánh bán lẻ">
+        <x-admin.kpi-card
+            label="Tổng số chi nhánh bán lẻ"
+            :value="number_format($summary['total'], 0, ',', '.')"
+            subtext="Không bao gồm kho trung tâm"
+            variant="blue"
+        >
+            <x-slot:icon>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 21h18"/>
+                    <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/>
+                    <path d="M9 9h1"/>
+                    <path d="M9 13h1"/>
+                    <path d="M14 9h1"/>
+                    <path d="M14 13h1"/>
+                </svg>
+            </x-slot:icon>
+        </x-admin.kpi-card>
+
+        <x-admin.kpi-card
+            label="Chi nhánh đang hoạt động"
+            :value="number_format($summary['active'], 0, ',', '.')"
+            subtext="Sẵn sàng tiếp nhận vận hành"
+            variant="green"
+        >
+            <x-slot:icon>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </x-slot:icon>
+        </x-admin.kpi-card>
+
+        <x-admin.kpi-card
+            label="Chi nhánh tạm ngừng"
+            :value="number_format($summary['inactive'], 0, ',', '.')"
+            subtext="Đang bảo trì hoặc tạm đóng"
+            variant="amber"
+        >
+            <x-slot:icon>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </x-slot:icon>
+        </x-admin.kpi-card>
+
+        <x-admin.kpi-card
+            label="Nhân sự đang được phân công"
+            :value="number_format($summary['active_staff_total'] ?? 0, 0, ',', '.')"
+            subtext="Phân công đang hiệu lực"
+            variant="purple"
+        >
+            <x-slot:icon>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </x-slot:icon>
+        </x-admin.kpi-card>
     </div>
 
-    <section class="bs-ad-identity-grid" aria-label="Thống kê chi nhánh bán lẻ">
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Tổng chi nhánh bán lẻ</p>
-            <p class="bs-ad-stat-value">{{ $summary['total'] }} chi nhánh</p>
-        </article>
+    {{-- ==================== 3. FILTER TOOLBAR & DATA TABLE ==================== --}}
+    <x-admin.content-card title="Danh sách chi nhánh bán lẻ" heading-id="heading-branches-list">
+        <x-slot:headerActions>
+            <span class="bs-ad-muted-meta">Tổng: {{ number_format($branches->total(), 0, ',', '.') }} kết quả</span>
+        </x-slot:headerActions>
 
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Đang hoạt động</p>
-            <p class="bs-ad-stat-value">{{ $summary['active'] }} chi nhánh</p>
-        </article>
+        {{-- Thanh tìm kiếm & lọc gọn gàng 1 hàng trên Desktop --}}
+        <x-admin.filter-toolbar :action="route('admin.branches.index')">
+            <x-admin.search-field
+                id="branch-search"
+                name="search"
+                :value="$search"
+                label="Tìm kiếm theo tên, mã chi nhánh hoặc địa điểm"
+                placeholder="Tìm theo tên, mã chi nhánh hoặc địa chỉ..."
+            />
 
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Đang ngừng hoạt động</p>
-            <p class="bs-ad-stat-value">{{ $summary['inactive'] }} chi nhánh</p>
-        </article>
+            <x-admin.filter-select
+                id="branch-status"
+                name="status"
+                label="Trạng thái chi nhánh"
+            >
+                <option value="">Tất cả trạng thái</option>
+                @foreach ($statusOptions as $option)
+                    <option value="{{ $option->value }}" @selected($statusFilter === $option->value)>
+                        {{ $option->label() }}
+                    </option>
+                @endforeach
+            </x-admin.filter-select>
 
-        <article class="bs-ad-stat-card">
-            <p class="bs-ad-stat-label">Kho trung tâm duy nhất</p>
-            <p class="bs-ad-stat-value">
-                {{ $centralWarehouse !== null ? $centralWarehouse->code . ' (' . $centralWarehouse->status->label() . ')' : 'Chưa có dữ liệu' }}
-            </p>
-        </article>
-    </section>
+            <x-slot:actions>
+                @if ($search !== '' || $statusFilter !== '')
+                    <a href="{{ route('admin.branches.index') }}" class="bs-ad-btn-reset">Đặt lại</a>
+                @endif
+                <button type="submit" class="bs-ad-btn-apply">Áp dụng lọc</button>
+            </x-slot:actions>
+        </x-admin.filter-toolbar>
 
-    <section class="bs-ad-panel" aria-labelledby="branch-filter-heading">
-        <h2 id="branch-filter-heading" class="bs-ad-panel-title">Tìm kiếm và lọc chi nhánh bán lẻ</h2>
-        <p class="bs-ad-panel-subtitle">
-            Tra cứu theo mã chi nhánh, tên chi nhánh, địa chỉ hoặc số điện thoại liên hệ.
-        </p>
-
-        <form method="GET" action="{{ route('admin.branches.index') }}" class="bs-ad-filter-form">
-            <div class="bs-ad-field">
-                <label for="branch-search" class="bs-ad-label">Từ khóa tìm kiếm</label>
-                <input
-                    id="branch-search"
-                    type="search"
-                    name="search"
-                    value="{{ $search }}"
-                    maxlength="100"
-                    placeholder="Ví dụ: HN01, Quận 1, Đường Láng..."
-                    class="bs-ad-input @error('search') bs-ad-input-error @enderror"
-                >
-                @error('search')
-                    <p class="bs-ad-field-error">{{ $message }}</p>
-                @enderror
-            </div>
-
-            <div class="bs-ad-field">
-                <label for="branch-status-filter" class="bs-ad-label">Trạng thái vận hành</label>
-                <select
-                    id="branch-status-filter"
-                    name="status"
-                    class="bs-ad-select @error('status') bs-ad-input-error @enderror"
-                >
-                    <option value="">Tất cả trạng thái</option>
-                    @foreach ($statusOptions as $option)
-                        <option value="{{ $option->value }}" @selected($statusFilter === $option->value)>
-                            {{ $option->label() }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('status')
-                    <p class="bs-ad-field-error">{{ $message }}</p>
-                @enderror
-            </div>
-
-            <div class="bs-ad-page-actions">
-                <button type="submit" class="bs-ad-btn-primary">Lọc danh sách</button>
+        @if ($branches->isEmpty())
+            <x-admin.empty-state
+                :description="($search !== '' || $statusFilter !== '')
+                    ? 'Không tìm thấy chi nhánh bán lẻ nào phù hợp với điều kiện lọc hiện tại.'
+                    : 'Chưa có chi nhánh bán lẻ nào trong hệ thống.'"
+            >
                 @if ($search !== '' || $statusFilter !== '')
                     <a href="{{ route('admin.branches.index') }}" class="bs-ad-btn-outline">Đặt lại</a>
                 @endif
+            </x-admin.empty-state>
+        @else
+            {{-- Bảng dữ liệu Desktop / Tablet --}}
+            <x-admin.data-table>
+                <x-slot:head>
+                    <tr>
+                        <th>CHI NHÁNH</th>
+                        <th>ĐỊA ĐIỂM</th>
+                        <th>TRẠNG THÁI</th>
+                        <th>NHÂN SỰ</th>
+                        <th>NGÀY CẬP NHẬT</th>
+                        <th class="bs-ad-th-action">THAO TÁC</th>
+                    </tr>
+                </x-slot:head>
+
+                @foreach ($branches as $branch)
+                    <tr>
+                        <td>
+                            <div class="bs-ad-branch-cell">
+                                <span class="bs-ad-user-name">{{ $branch->name }}</span>
+                                <span class="bs-ad-branch-code-tag">{{ $branch->code }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="bs-ad-branch-address">{{ $branch->address ?: 'Chưa cập nhật địa chỉ' }}</span>
+                        </td>
+                        <td>
+                            @if ($branch->status === \App\Enums\BranchStatus::Active)
+                                <x-admin.status-badge variant="success">{{ $branch->status->label() }}</x-admin.status-badge>
+                            @else
+                                <x-admin.status-badge variant="danger">{{ $branch->status->label() }}</x-admin.status-badge>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="bs-ad-staff-count">{{ number_format($branch->active_staff_count ?? 0, 0, ',', '.') }} nhân sự</span>
+                        </td>
+                        <td>
+                            <span class="bs-ad-date-cell">{{ format_datetime($branch->updated_at) }}</span>
+                        </td>
+                        <td class="bs-ad-td-action">
+                            <a href="{{ route('admin.branches.show', $branch) }}" class="bs-ad-btn-detail">
+                                Xem chi tiết
+                            </a>
+                        </td>
+                    </tr>
+                @endforeach
+            </x-admin.data-table>
+
+            {{-- Danh sách thẻ Mobile (< 768px) --}}
+            <div class="bs-ad-mobile-cards">
+                @foreach ($branches as $branch)
+                    <article class="bs-ad-mobile-card">
+                        <div class="bs-ad-mobile-card-head">
+                            <div>
+                                <h3 class="bs-ad-user-name">{{ $branch->name }}</h3>
+                                <span class="bs-ad-branch-code-tag">{{ $branch->code }}</span>
+                            </div>
+                            @if ($branch->status === \App\Enums\BranchStatus::Active)
+                                <x-admin.status-badge variant="success">{{ $branch->status->label() }}</x-admin.status-badge>
+                            @else
+                                <x-admin.status-badge variant="danger">{{ $branch->status->label() }}</x-admin.status-badge>
+                            @endif
+                        </div>
+
+                        <dl class="bs-ad-mobile-card-meta">
+                            <div>
+                                <dt>Địa điểm</dt>
+                                <dd>{{ $branch->address ?: 'Chưa cập nhật địa chỉ' }}</dd>
+                            </div>
+                            <div>
+                                <dt>Nhân sự phân công</dt>
+                                <dd>{{ number_format($branch->active_staff_count ?? 0, 0, ',', '.') }} nhân sự</dd>
+                            </div>
+                            <div>
+                                <dt>Cập nhật</dt>
+                                <dd>{{ format_datetime($branch->updated_at) }}</dd>
+                            </div>
+                        </dl>
+
+                        <div class="bs-ad-mobile-card-actions">
+                            <a href="{{ route('admin.branches.show', $branch) }}" class="bs-ad-btn-detail bs-ad-btn-full">
+                                Xem chi tiết
+                            </a>
+                        </div>
+                    </article>
+                @endforeach
             </div>
-        </form>
-    </section>
 
-    @if ($branches->count() === 0)
-        <section class="bs-ad-empty-state" aria-label="Chưa có dữ liệu chi nhánh phù hợp">
-            <h2 class="bs-ad-panel-title">
-                @if ($search !== '' || $statusFilter !== '')
-                    Không tìm thấy chi nhánh bán lẻ nào khớp bộ lọc
-                @else
-                    Chưa có chi nhánh bán lẻ nào trong hệ thống
-                @endif
-            </h2>
-            <p class="bs-ad-panel-subtitle">
-                @if ($search !== '' || $statusFilter !== '')
-                    Thử xóa bộ lọc tìm kiếm hoặc kiểm tra lại mã và tên chi nhánh cần tra cứu.
-                @else
-                    Hệ thống hiện chỉ có Kho trung tâm bất biến. Bạn có thể tạo chi nhánh bán lẻ đầu tiên ngay bên dưới.
-                @endif
-            </p>
-            <div class="bs-ad-page-actions">
-                @if ($search !== '' || $statusFilter !== '')
-                    <a href="{{ route('admin.branches.index') }}" class="bs-ad-btn-outline">Xem toàn bộ danh sách</a>
-                @endif
-                @if ($canCreateBranch)
-                    <a href="{{ route('admin.branches.create') }}" class="bs-ad-btn-primary">Tạo chi nhánh bán lẻ mới</a>
-                @endif
-            </div>
-        </section>
-    @else
-        <section class="bs-ad-branch-list" aria-label="Danh sách chi nhánh bán lẻ">
-            @foreach ($branches as $branch)
-                <article class="bs-ad-branch-card">
-                    <div class="bs-ad-branch-card-head">
-                        <span class="bs-ad-code">{{ $branch->code }}</span>
-                        <span @class([
-                            'bs-ad-pill',
-                            'bs-ad-pill-active' => $branch->isActive(),
-                            'bs-ad-pill-inactive' => ! $branch->isActive(),
-                        ])>
-                            {{ $branch->status->label() }}
-                        </span>
-                    </div>
-
-                    <h2 class="bs-ad-branch-title">{{ $branch->name }}</h2>
-
-                    <dl class="bs-ad-meta-list">
-                        <div class="bs-ad-meta-row">
-                            <dt class="bs-ad-meta-label">Loại đơn vị:</dt>
-                            <dd class="bs-ad-meta-value">{{ $branch->type->label() }}</dd>
-                        </div>
-                        <div class="bs-ad-meta-row">
-                            <dt class="bs-ad-meta-label">Điện thoại:</dt>
-                            <dd class="bs-ad-meta-value">{{ $branch->phone ?: 'Chưa cập nhật' }}</dd>
-                        </div>
-                        <div class="bs-ad-meta-row">
-                            <dt class="bs-ad-meta-label">Địa chỉ:</dt>
-                            <dd class="bs-ad-meta-value">{{ $branch->address ?: 'Chưa cập nhật địa chỉ' }}</dd>
-                        </div>
-                        <div class="bs-ad-meta-row">
-                            <dt class="bs-ad-meta-label">Cập nhật lần cuối:</dt>
-                            <dd class="bs-ad-meta-value">{{ format_datetime($branch->updated_at) }}</dd>
-                        </div>
-                    </dl>
-
-                    <div class="bs-ad-branch-card-foot">
-                        <span class="bs-ad-help">Định danh hệ thống #{{ $branch->id }}</span>
-                        <a href="{{ route('admin.branches.show', $branch) }}" class="bs-ad-btn-outline">
-                            Xem &amp; quản trị
-                        </a>
-                    </div>
-                </article>
-            @endforeach
-        </section>
-
-        @if ($branches->hasPages())
-            <div class="bs-ad-pagination">
-                {{ $branches->links() }}
-            </div>
+            <x-admin.pagination :paginator="$branches" />
         @endif
-    @endif
+    </x-admin.content-card>
+</div>
 @endsection

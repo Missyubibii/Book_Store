@@ -37,14 +37,17 @@ class EmailVerificationController extends Controller
      */
     public function verify(EmailVerificationRequest $request): RedirectResponse
     {
-        if ($request->user()->hasVerifiedEmail()) {
+        $user = $request->user();
+
+        if ($user->hasVerifiedEmail()) {
             return redirect()
                 ->intended('/?verified=1')
-                ->with('success', 'Địa chỉ email của bạn đã được xác thực thành công.');
+                ->with('info', 'Địa chỉ email của bạn đã được xác thực trước đó.');
         }
 
-        if ($request->user()->markEmailAsVerified()) {
-            event(new Verified($request->user()));
+        if ($user->markEmailAsVerified()) {
+            $user->refresh();
+            event(new Verified($user));
         }
 
         return redirect()
